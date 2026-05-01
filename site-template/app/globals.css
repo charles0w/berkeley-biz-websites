@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-stone-50 text-stone-900;
+  }
+
+  ::selection {
+    @apply bg-stone-200 text-stone-900;
+  }
+}
+
+@layer utilities {
+  .photo-warm {
+    filter: brightness(0.97) saturate(1.06) contrast(0.97) sepia(0.04);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .leading-display {
+    line-height: 1.04;
+  }
+
+  .tracking-tightest {
+    letter-spacing: -0.03em;
+  }
+}

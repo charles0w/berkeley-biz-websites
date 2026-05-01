@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Env
+scraper/.env
+.env
+
+# Data (DB is local; don't commit scraped data)
+data/businesses.db
+site-template/public/images/*.jpg
+site-template/public/images/*.png
+site-template/public/images/*.webp
+
+# Next.js
+site-template/.next/
+site-template/out/
+site-template/node_modules/
+
+# Vercel
+.vercel/
+
+# macOS
+.DS_Store

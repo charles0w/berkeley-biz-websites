@@ -1,0 +1,22 @@
+{
+  "name": "Royal Ground Coffee House",
+  "slug": "royal-ground",
+  "tagline": "Berkeley's neighborhood coffee anchor, cup by cup.",
+  "about": "Royal Ground has kept 2409 Shattuck buzzing for years. It's the kind of place where regulars have a usual and the staff knows it — straightforward coffee done well, no frills, no pretense. Downtown Berkeley's caffeine backbone.",
+  "phone": "(510) 849-9888",
+  "address": "2409 Shattuck Ave, Berkeley, CA 94704",
+  "hours": {
+    "Monday": "7:00 AM – 6:00 PM",
+    "Tuesday": "7:00 AM – 6:00 PM",
+    "Wednesday": "7:00 AM – 6:00 PM",
+    "Thursday": "7:00 AM – 6:00 PM",
+    "Friday": "7:00 AM – 6:00 PM",
+    "Saturday": "8:00 AM – 5:00 PM",
+    "Sunday": "8:00 AM – 5:00 PM"
+  },
+  "category": "cafe",
+  "rating": 4.5,
+  "review_count": 169,
+  "photos": [],
+  "place_id": "PLACEHOLDER"
+}

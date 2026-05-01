@@ -1,0 +1,149 @@
+"""
+Scrape local businesses near UC Berkeley that have no real owned website.
+Saves results to data/businesses.db.
+
+Usage:
+    cd scraper && python scrape.py
+"""
+import os
+import sys
+import json
+import time
+import googlemaps
+from dotenv import load_dotenv
+from db import Database
+
+load_dotenv()
+
+BERKELEY_LAT = 37.8716
+BERKELEY_LNG = -122.2727
+RADIUS_M = 2000
+
+TYPES_TO_SCRAPE = [
+    'restaurant', 'cafe', 'hair_care', 'beauty_salon', 'nail_salon',
+    'bar', 'bakery', 'clothing_store', 'florist', 'spa',
+    'shoe_store', 'jewelry_store', 'pet_store', 'gym', 'book_store',
+]
+
+PLACEHOLDER_DOMAINS = {
+    'yelp.com', 'facebook.com', 'instagram.com', 'tripadvisor.com',
+    'grubhub.com', 'doordash.com', 'ubereats.com', 'foursquare.com',
+    'yellowpages.com', 'whitepages.com', 'edan.io', 'fresha.com',
+    'vagaro.com', 'booksy.com', 'square.site', 'sites.google.com',
+    'linktree.com', 'linktr.ee', 'biz.yelp.com', 'maps.google.com',
+}
+
+DETAIL_FIELDS = [
+    'name', 'formatted_address', 'formatted_phone_number',
+    'website', 'opening_hours', 'rating', 'user_ratings_total',
+    'photos', 'types', 'geometry',
+]
+
+
+def is_placeholder(url: str) -> bool:
+    if not url:
+        return True
+    return any(d in url for d in PLACEHOLDER_DOMAINS)
+
+
+def classify_category(types: list[str]) -> str:
+    if any(t in types for t in ('cafe', 'coffee_shop')):
+        return 'cafe'
+    if any(t in types for t in ('hair_care', 'hair_salon')):
+        return 'salon'
+    if any(t in types for t in ('beauty_salon', 'nail_salon', 'spa')):
+        return 'beauty'
+    if any(t in types for t in ('gym', 'health', 'fitness_center')):
+        return 'fitness'
+    if any(t in types for t in ('clothing_store', 'shoe_store', 'jewelry_store', 'book_store', 'pet_store', 'florist')):
+        return 'retail'
+    if any(t in types for t in ('restaurant', 'food', 'bar', 'bakery', 'meal_takeaway')):
+        return 'food'
+    return 'services'
+
+
+def parse_hours(opening_hours: dict) -> dict:
+    if not opening_hours:
+        return {}
+    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    result = {}
+    for i, text in enumerate(opening_hours.get('weekday_text', [])):
+        if i < len(days):
+            parts = text.split(': ', 1)
+            result[days[i]] = parts[1] if len(parts) > 1 else text
+    return result
+
+
+def scrape():
+    api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+    if not api_key:
+        sys.exit('GOOGLE_MAPS_API_KEY not set — copy scraper/.env.example to scraper/.env and fill it in.')
+
+    gmaps = googlemaps.Client(key=api_key)
+    db = Database()
+    total_new = 0
+
+    for place_type in TYPES_TO_SCRAPE:
+        print(f'\nScraping type: {place_type}')
+        next_page_token = None
+
+        for page in range(3):
+            kwargs: dict = {
+                'location': (BERKELEY_LAT, BERKELEY_LNG),
+                'radius': RADIUS_M,
+                'type': place_type,
+            }
+            if next_page_token:
+                kwargs['page_token'] = next_page_token
+                time.sleep(2.5)
+
+            try:
+                response = gmaps.places_nearby(**kwargs)
+            except Exception as e:
+                print(f'  API error: {e}')
+                break
+
+            for place in response.get('results', []):
+                place_id = place['place_id']
+
+                try:
+                    detail = gmaps.place(place_id, fields=DETAIL_FIELDS)['result']
+                except Exception as e:
+                    print(f'  detail error for {place.get("name")}: {e}')
+                    continue
+
+                website = detail.get('website', '')
+                if not is_placeholder(website):
+                    continue  # has a real owned site — skip
+
+                hours = parse_hours(detail.get('opening_hours', {}))
+                photo_refs = [p['photo_reference'] for p in detail.get('photos', [])[:6]]
+
+                db.upsert_business({
+                    'place_id': place_id,
+                    'name': detail['name'],
+                    'address': detail.get('formatted_address', ''),
+                    'phone': detail.get('formatted_phone_number', ''),
+                    'website': website,
+                    'rating': detail.get('rating', 0),
+                    'review_count': detail.get('user_ratings_total', 0),
+                    'category': classify_category(detail.get('types', [])),
+                    'hours_json': json.dumps(hours),
+                    'photo_refs': json.dumps(photo_refs),
+                    'lat': detail['geometry']['location']['lat'],
+                    'lng': detail['geometry']['location']['lng'],
+                })
+                total_new += 1
+                print(f'  + {detail["name"]} ({detail.get("rating", "?")}★, {detail.get("user_ratings_total", 0)} reviews)')
+
+                time.sleep(0.15)
+
+            next_page_token = response.get('next_page_token')
+            if not next_page_token:
+                break
+
+    print(f'\nDone. {total_new} businesses saved/updated. Total in DB: {db.count()}')
+
+
+if __name__ == '__main__':
+    scrape()
