@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Env files
+scraper/.env
+.env
+
+# Database and generated output
+data/businesses.db
+generated/
+
+# Node
+site-template/node_modules/
+site-template/.next/
+site-template/out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Empty artifact directories
+BerkeleyBiz/
+
+# Tooling artifacts
+sentinel-from-write-tool.txt

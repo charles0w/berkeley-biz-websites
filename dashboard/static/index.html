@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Berkeley Biz Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fade-in { animation: fadeIn 0.2s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+    .card-hover { transition: box-shadow 0.15s, transform 0.15s; }
+    .card-hover:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); transform: translateY(-1px); }
+    iframe { border: none; }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 font-sans antialiased min-h-screen" x-data="dashboard()" x-init="init()" x-cloak>
+
+  <!-- ── Top Nav ─────────────────────────────────────────────────────────── -->
+  <header class="bg-white border-b border-stone-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white font-bold text-sm">B</div>
+      <span class="font-semibold text-stone-900 text-lg">Berkeley Biz Websites</span>
+    </div>
+    <div class="flex items-center gap-6 text-sm">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-green-400 inline-block" x-show="!loading"></span>
+        <span class="w-2 h-2 rounded-full bg-amber-400 inline-block spinner" x-show="loading"></span>
+        <span class="text-stone-400" x-text="loading ? 'Refreshing…' : 'Live'"></span>
+      </div>
+      <button @click="load()" class="text-stone-400 hover:text-stone-700 transition-colors">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- ── Stats Bar ────────────────────────────────────────────────────────── -->
+  <div class="bg-white border-b border-stone-200 px-6 py-3 flex gap-6 overflow-x-auto">
+    <template x-for="s in statCards" :key="s.label">
+      <button
+        @click="setFilter(s.filter)"
+        class="flex items-center gap-2.5 text-sm whitespace-nowrap px-3 py-1.5 rounded-lg transition-colors"
+        :class="filter === s.filter ? 'bg-amber-50 text-amber-700 font-medium' : 'text-stone-500 hover:text-stone-800'"
+      >
+        <span x-text="s.icon"></span>
+        <span x-text="s.label"></span>
+        <span
+          class="text-xs font-bold px-1.5 py-0.5 rounded-full"
+          :class="filter === s.filter ? 'bg-amber-200 text-amber-800' : 'bg-stone-100 text-stone-600'"
+          x-text="stats[s.key] ?? '…'"
+        ></span>
+      </button>
+    </template>
+    <!-- Revenue pill -->
+    <div class="ml-auto flex items-center gap-2 text-sm text-stone-500 whitespace-nowrap">
+      <span>💰</span>
+      <span>Revenue:</span>
+      <span class="font-bold text-green-600" x-text="'$' + (revenue).toLocaleString()"></span>
+    </div>
+  </div>
+
+  <!-- ── Filter + Search Bar ──────────────────────────────────────────────── -->
+  <div class="px-6 py-4 flex items-center gap-3">
+    <div class="relative flex-1 max-w-sm">
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm">🔍</span>
+      <input
+        type="text"
+        placeholder="Search by name or address…"
+        x-model.debounce.300ms="search"
+        @input="load()"
+        class="w-full pl-9 pr-4 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+      />
+    </div>
+    <span class="text-sm text-stone-400" x-text="businesses.length + ' results'"></span>
+  </div>
+
+  <!-- ── Business Grid ─────────────────────────────────────────────────────── -->
+  <main class="px-6 pb-16">
+
+    <!-- Empty state -->
+    <div x-show="businesses.length === 0 && !loading" class="text-center py-24 text-stone-400">
+      <div class="text-5xl mb-4">🏪</div>
+      <p class="text-lg font-medium text-stone-600">No businesses here</p>
+      <p class="text-sm mt-1" x-text="filter === 'all' ? 'Run the scraper to find businesses.' : 'Try a different filter.'"></p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <template x-for="b in businesses" :key="b.place_id">
+        <div class="bg-white rounded-xl border border-stone-200 p-5 card-hover fade-in flex flex-col gap-4">
+
+          <!-- Card header -->
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex-1 min-w-0">
+              <h2 class="font-semibold text-stone-900 text-base leading-tight truncate" x-text="b.name"></h2>
+              <p class="text-stone-400 text-xs mt-0.5 truncate" x-text="b.address"></p>
+            </div>
+            <span
+              class="text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap flex-shrink-0"
+              :class="statusBadge(b).cls"
+              x-text="statusBadge(b).label"
+            ></span>
+          </div>
+
+          <!-- Meta row -->
+          <div class="flex items-center gap-4 text-xs text-stone-400">
+            <span x-show="b.rating">
+              <span class="text-amber-400">★</span>
+              <span x-text="b.rating?.toFixed(1)"></span>
+              <span x-text="b.ratings_count ? '(' + b.ratings_count + ')' : ''" class="text-stone-300"></span>
+            </span>
+            <span x-show="b.phone" x-text="b.phone"></span>
+            <span x-show="b.types?.length" x-text="b.types[0]?.replace(/_/g,' ')?.replace(/\b\w/g, c => c.toUpperCase())"></span>
+          </div>
+
+          <!-- Generation error -->
+          <div x-show="b.generate_error" class="text-xs text-red-600 bg-red-50 rounded-lg p-2.5 leading-relaxed" x-text="'Error: ' + b.generate_error"></div>
+
+          <!-- Site URL -->
+          <div x-show="b.site_url" class="flex items-center gap-2">
+            <span class="text-xs text-stone-400">Site:</span>
+            <a
+              :href="b.site_url"
+              target="_blank"
+              class="text-xs text-amber-600 hover:text-amber-700 underline underline-offset-2 truncate"
+              x-text="b.site_url"
+            ></a>
+          </div>
+
+          <!-- Email address input (shown when site is built) -->
+          <div x-show="b.site_built && !b.outreach_sent" class="flex gap-2">
+            <input
+              type="email"
+              :placeholder="'owner@' + (b.name?.toLowerCase().replace(/\s+/g,'')||'business') + '.com'"
+              :value="b.email || ''"
+              @change="updateEmail(b.place_id, $event.target.value); b.email = $event.target.value"
+              class="flex-1 text-xs border border-stone-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex gap-2 flex-wrap mt-auto">
+
+            <!-- Generate site -->
+            <button
+              x-show="!b.site_built && !b.generating && !b.skipped"
+              @click="generateSite(b)"
+              class="flex-1 text-xs font-medium px-3 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition-colors"
+            >
+              ⚡ Generate Site
+            </button>
+
+            <!-- Generating spinner -->
+            <div
+              x-show="b.generating"
+              class="flex-1 text-xs font-medium px-3 py-2 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center gap-2"
+            >
+              <svg class="spinner w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              Building…
+            </div>
+
+            <!-- Preview email -->
+            <button
+              x-show="b.site_built && !b.outreach_sent"
+              @click="openPreview(b)"
+              class="flex-1 text-xs font-medium px-3 py-2 border border-stone-200 text-stone-600 rounded-lg hover:bg-stone-50 transition-colors"
+            >
+              👁 Preview Email
+            </button>
+
+            <!-- Approve & Send -->
+            <button
+              x-show="b.site_built && !b.outreach_sent"
+              @click="openApprove(b)"
+              :disabled="!b.email"
+              class="flex-1 text-xs font-medium px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ✓ Approve & Send
+            </button>
+
+            <!-- Sent label -->
+            <div x-show="b.outreach_sent && !b.responded && !b.sold" class="flex-1 flex gap-2">
+              <div class="flex-1 text-xs text-green-600 bg-green-50 rounded-lg px-3 py-2 text-center">✓ Sent</div>
+              <button @click="markResponded(b)" class="text-xs px-2.5 py-2 border border-stone-200 rounded-lg hover:bg-stone-50 text-stone-500" title="Mark as responded">💬</button>
+              <button @click="openMarkSold(b)" class="text-xs px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600" title="Mark as sold">💰</button>
+            </div>
+
+            <!-- Responded -->
+            <div x-show="b.responded && !b.sold" class="flex-1 flex gap-2">
+              <div class="flex-1 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 text-center">💬 Responded</div>
+              <button @click="openMarkSold(b)" class="text-xs px-2.5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">💰 Mark Sold</button>
+            </div>
+
+            <!-- Sold -->
+            <div x-show="b.sold" class="flex-1 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 text-center font-medium">
+              🏆 Sold <span x-show="b.sale_amount" x-text="' · $' + b.sale_amount?.toLocaleString()"></span>
+            </div>
+
+            <!-- Skip / Unskip -->
+            <button
+              x-show="!b.site_built && !b.generating && !b.skipped"
+              @click="skip(b)"
+              class="text-xs px-2.5 py-2 text-stone-300 hover:text-stone-500 transition-colors"
+              title="Skip this business"
+            >✕</button>
+            <button
+              x-show="b.skipped"
+              @click="unskip(b)"
+              class="flex-1 text-xs px-3 py-2 text-stone-400 border border-stone-200 rounded-lg hover:bg-stone-50"
+            >↩ Restore</button>
+
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <!-- ── Email Preview Modal ──────────────────────────────────────────────── -->
+  <div
+    x-show="previewModal"
+    @click.self="previewModal = null"
+    class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+    x-transition:enter="transition ease-out duration-150"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+  >
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+        <div>
+          <p class="text-xs text-stone-400 mb-0.5">Email Preview</p>
+          <h3 class="font-semibold text-stone-900" x-text="previewModal?.subject"></h3>
+        </div>
+        <button @click="previewModal = null" class="text-stone-400 hover:text-stone-700 text-xl leading-none">×</button>
+      </div>
+      <div class="flex-1 overflow-auto p-1">
+        <iframe
+          class="w-full rounded-lg"
+          style="height: 480px;"
+          x-ref="previewFrame"
+          :srcdoc="previewModal?.html"
+        ></iframe>
+      </div>
+      <div class="px-6 py-4 border-t border-stone-100">
+        <p class="text-xs text-stone-400">This is exactly what they'll receive.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Approve & Send Modal ─────────────────────────────────────────────── -->
+  <div
+    x-show="approveModal"
+    @click.self="approveModal = null"
+    class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+    x-transition:enter="transition ease-out duration-150"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+  >
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="px-6 py-5 border-b border-stone-100">
+        <h3 class="font-semibold text-stone-900">Approve & Send Email</h3>
+        <p class="text-sm text-stone-400 mt-0.5" x-text="'For: ' + approveModal?.name"></p>
+      </div>
+      <div class="px-6 py-5 space-y-4">
+        <div>
+          <label class="text-xs font-medium text-stone-500 uppercase tracking-wider block mb-1.5">Recipient email address</label>
+          <input
+            type="email"
+            x-model="approveEmail"
+            placeholder="owner@business.com"
+            class="w-full border border-stone-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            @keydown.enter="doApprove()"
+          />
+          <p class="text-xs text-stone-400 mt-1.5">Find this on Google Maps, Yelp, or their social pages.</p>
+        </div>
+        <div class="bg-amber-50 rounded-lg p-3.5 text-xs text-amber-700 leading-relaxed">
+          ⚠ Double-check the email before sending. This goes out immediately via Resend.
+        </div>
+      </div>
+      <div class="px-6 pb-5 flex gap-3">
+        <button @click="approveModal = null" class="flex-1 px-4 py-2.5 border border-stone-200 text-stone-600 rounded-lg text-sm hover:bg-stone-50 transition-colors">Cancel</button>
+        <button
+          @click="doApprove()"
+          :disabled="!approveEmail || sending"
+          class="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-40"
+          x-text="sending ? 'Sending…' : '✓ Send Email'"
+        ></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Mark Sold Modal ──────────────────────────────────────────────────── -->
+  <div
+    x-show="soldModal"
+    @click.self="soldModal = null"
+    class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+    x-transition:enter="transition ease-out duration-150"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+  >
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-stone-100">
+        <h3 class="font-semibold text-stone-900">🏆 Mark as Sold</h3>
+        <p class="text-sm text-stone-400 mt-0.5" x-text="soldModal?.name"></p>
+      </div>
+      <div class="px-6 py-5">
+        <label class="text-xs font-medium text-stone-500 uppercase tracking-wider block mb-1.5">Sale amount (USD)</label>
+        <div class="relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400">$</span>
+          <input
+            type="number"
+            x-model="soldAmount"
+            placeholder="299"
+            min="0"
+            class="w-full border border-stone-200 rounded-lg pl-7 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            @keydown.enter="doMarkSold()"
+          />
+        </div>
+      </div>
+      <div class="px-6 pb-5 flex gap-3">
+        <button @click="soldModal = null" class="flex-1 px-4 py-2.5 border border-stone-200 text-stone-600 rounded-lg text-sm hover:bg-stone-50">Cancel</button>
+        <button @click="doMarkSold()" class="flex-1 px-4 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600">Confirm Sale</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Toast ─────────────────────────────────────────────────────────────── -->
+  <div
+    x-show="toast"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-stone-900 text-white text-sm px-5 py-3 rounded-full shadow-xl z-50"
+    x-text="toast"
+  ></div>
+
+<script>
+function dashboard() {
+  return {
+    businesses: [],
+    stats: {},
+    revenue: 0,
+    filter: 'all',
+    search: '',
+    loading: false,
+
+    previewModal: null,
+    approveModal: null,
+    approveEmail: '',
+    sending: false,
+
+    soldModal: null,
+    soldAmount: '',
+
+    toast: '',
+    _toastTimer: null,
+
+    statCards: [
+      { label: 'All',        key: 'total',      filter: 'all',        icon: '🏪' },
+      { label: 'No Site',    key: 'no_site',    filter: 'no-site',    icon: '🔍' },
+      { label: 'Building',   key: 'generating', filter: 'generating', icon: '⚡' },
+      { label: 'Ready',      key: 'ready',      filter: 'ready',      icon: '📬' },
+      { label: 'Sent',       key: 'sent',       filter: 'sent',       icon: '✉️' },
+      { label: 'Responded',  key: 'responded',  filter: 'responded',  icon: '💬' },
+      { label: 'Sold',       key: 'sold',       filter: 'sold',       icon: '🏆' },
+      { label: 'Skipped',    key: 'skipped',    filter: 'skipped',    icon: '✕' },
+    ],
+
+    async init() {
+      await this.load();
+      setInterval(() => this.load(), 8000);
+    },
+
+    async load() {
+      this.loading = true;
+      try {
+        const [biz, stats, allBiz] = await Promise.all([
+          fetch(`/api/businesses?status=${this.filter}&search=${encodeURIComponent(this.search)}`).then(r => r.json()),
+          fetch('/api/stats').then(r => r.json()),
+          fetch('/api/businesses?status=sold').then(r => r.json()),
+        ]);
+        this.businesses = biz;
+        this.stats = stats;
+        this.revenue = allBiz.reduce((sum, b) => sum + (b.sale_amount || 0), 0);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    setFilter(f) {
+      this.filter = f;
+      this.load();
+    },
+
+    statusBadge(b) {
+      if (b.sold)           return { label: '🏆 Sold',       cls: 'bg-amber-100 text-amber-700' };
+      if (b.responded)      return { label: '💬 Responded',  cls: 'bg-blue-100 text-blue-700' };
+      if (b.outreach_sent)  return { label: '✉️ Sent',       cls: 'bg-green-100 text-green-700' };
+      if (b.skipped)        return { label: '✕ Skipped',     cls: 'bg-stone-100 text-stone-400' };
+      if (b.generating)     return { label: '⚡ Building',   cls: 'bg-blue-100 text-blue-700' };
+      if (b.generate_error) return { label: '⚠ Error',       cls: 'bg-red-100 text-red-600' };
+      if (b.site_built)     return { label: '📬 Ready',      cls: 'bg-purple-100 text-purple-700' };
+      return                       { label: '🔍 Scraped',    cls: 'bg-stone-100 text-stone-500' };
+    },
+
+    async generateSite(b) {
+      b.generating = true;
+      await fetch(`/api/businesses/${b.place_id}/generate`, { method: 'POST' });
+      this.showToast(`Generating site for ${b.name}…`);
+    },
+
+    async openPreview(b) {
+      const resp = await fetch(`/api/businesses/${b.place_id}/preview`);
+      const data = await resp.json();
+      this.previewModal = { ...b, ...data };
+    },
+
+    openApprove(b) {
+      this.approveModal = b;
+      this.approveEmail = b.email || '';
+    },
+
+    async doApprove() {
+      if (!this.approveEmail) return;
+      this.sending = true;
+      try {
+        const resp = await fetch(`/api/businesses/${this.approveModal.place_id}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.approveEmail }),
+        });
+        if (resp.ok) {
+          this.approveModal = null;
+          this.showToast('Email sent! ✓');
+          await this.load();
+        } else {
+          const err = await resp.json();
+          this.showToast('Error: ' + (err.detail || 'Send failed'));
+        }
+      } finally {
+        this.sending = false;
+      }
+    },
+
+    async updateEmail(placeId, email) {
+      await fetch(`/api/businesses/${placeId}/email`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    },
+
+    async skip(b) {
+      await fetch(`/api/businesses/${b.place_id}/skip`, { method: 'POST' });
+      await this.load();
+    },
+
+    async unskip(b) {
+      await fetch(`/api/businesses/${b.place_id}/unskip`, { method: 'POST' });
+      await this.load();
+    },
+
+    async markResponded(b) {
+      await fetch(`/api/businesses/${b.place_id}/responded`, { method: 'POST' });
+      this.showToast('Marked as responded');
+      await this.load();
+    },
+
+    openMarkSold(b) {
+      this.soldModal = b;
+      this.soldAmount = '';
+    },
+
+    async doMarkSold() {
+      await fetch(`/api/businesses/${this.soldModal.place_id}/sold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: parseFloat(this.soldAmount) || 0 }),
+      });
+      this.soldModal = null;
+      this.showToast('🏆 Sale recorded!');
+      await this.load();
+    },
+
+    showToast(msg) {
+      this.toast = msg;
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(() => this.toast = '', 3000);
+    },
+  };
+}
+</script>
+</body>
+</html>

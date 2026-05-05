@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: Georgia, serif; font-size: 16px; line-height: 1.75; color: #1a1a18; max-width: 520px; margin: 0 auto; padding: 40px 20px; background: #fff; }
+  a { color: #1a1a18; }
+  .cta { display: inline-block; margin: 20px 0; padding: 13px 28px; background: #1a1a18; color: #fff !important; text-decoration: none; font-family: Arial, sans-serif; font-size: 13px; letter-spacing: 0.07em; text-transform: uppercase; }
+  .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e5e5e0; font-size: 12px; color: #aaa; font-family: Arial, sans-serif; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<p>Hi {{FIRST_NAME_OR_TEAM}},</p>
+
+<p>
+  I'm a UC Berkeley student and I built a website for {{BUSINESS_NAME}} over the weekend —
+  using your real photos and info from Google Maps:
+</p>
+
+<a class="cta" href="{{SITE_URL}}">View Your Website →</a>
+
+<p>
+  If you like it, I'll hand it over for a one-time <strong>$299</strong>
+  (includes your own domain for the first year). If not, no worries — costs you nothing to look.
+</p>
+
+<p>— {{YOUR_NAME}}</p>
+
+<div class="footer">
+  {{YOUR_NAME}} · UC Berkeley student · {{YOUR_EMAIL}}<br>
+  2650 Haste St, Berkeley CA 94720<br><br>
+  You got this because {{BUSINESS_NAME}} is a local Berkeley business without a website.
+  <a href="mailto:{{YOUR_EMAIL}}?subject=unsubscribe">Unsubscribe</a>
+</div>
+
+</body>
+</html>
