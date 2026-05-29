@@ -1,26 +1,26 @@
 name: Scrape businesses
 
-# Scrapes Berkeley businesses with no owned website into data/businesses.db
+# Scrapes Berkeley businesses with no owned website into Supabase (durable)
 # and reports run status to the CEO's Enterprise fleet dashboard (growth card).
 #
-# MANUAL ONLY for now (workflow_dispatch). The daily cron is intentionally
-# commented out until two decisions are made:
-#   1. Durable state — the DB lives in data/businesses.db, which is gitignored.
-#      Across CI runs it's persisted via actions/cache below (interim,
-#      best-effort). The robust upgrade is to move state to Supabase, matching
-#      shopify-arbitrage. Don't enable the cron until state is durable.
-#   2. Downstream stages — site generation (Vercel deploys, cost) and cold
-#      outreach (Resend, CAN-SPAM) stay human-triggered and are NOT in CI.
+# State lives in Supabase (see scraper/db.py + supabase/schema.sql), so runs
+# persist across CI. The scraper skips silently (green, no report) when
+# GOOGLE_MAPS_API_KEY isn't set, so this cron is safe to leave enabled before
+# secrets are configured — it activates the moment the secret is added.
 #
-# Required GitHub secrets:
+# Downstream stages — site generation (Vercel deploys, cost) and cold outreach
+# (Resend, CAN-SPAM) — stay human-triggered and are intentionally NOT in CI.
+#
+# Required GitHub secrets (for the scrape to actually run):
 #   GOOGLE_MAPS_API_KEY
+#   SUPABASE_URL, SUPABASE_SERVICE_KEY   (durable state; run supabase/schema.sql once)
 # Optional:
 #   CEOS_REPORT_SECRET   (lights up the growth card on ceos-enterprise)
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "0 8 * * *"  # 08:00 UTC daily — enable once state is durable
+  schedule:
+    - cron: "0 8 * * *"  # 08:00 UTC daily
 
 concurrency:
   group: berkeleybiz-scrape
@@ -37,18 +37,12 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      # Interim persistence: restore the latest cached DB, save a fresh copy
-      # each run. Replace with Supabase before enabling the cron.
-      - uses: actions/cache@v4
-        with:
-          path: data
-          key: businesses-db-${{ github.run_id }}
-          restore-keys: businesses-db-
-
       - run: pip install -r scraper/requirements.txt
 
       - run: python scrape.py
         working-directory: scraper
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}

@@ -155,7 +155,16 @@ def run():
 
     Re-raises on failure so the GH Actions job is marked failed too — the
     error report is best-effort and fires before the re-raise.
+
+    Skips silently (exit 0, no report) when GOOGLE_MAPS_API_KEY isn't set,
+    so the daily cron stays green until the secret is added rather than
+    spamming failures.
     """
+    if not os.environ.get('GOOGLE_MAPS_API_KEY'):
+        print('GOOGLE_MAPS_API_KEY not set — skipping scrape. '
+              'Add it as a repo secret to activate the cron.')
+        return None
+
     started = time.monotonic()
     try:
         total_new, total = scrape()
