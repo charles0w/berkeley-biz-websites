@@ -13,6 +13,9 @@ import googlemaps
 from dotenv import load_dotenv
 from db import Database
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import ceo_report
+
 load_dotenv()
 
 BERKELEY_LAT = 37.8716
@@ -142,8 +145,36 @@ def scrape():
             if not next_page_token:
                 break
 
-    print(f'\nDone. {total_new} businesses saved/updated. Total in DB: {db.count()}')
+    total = db.count()
+    print(f'\nDone. {total_new} businesses saved/updated. Total in DB: {total}')
+    return total_new, total
+
+
+def run():
+    """Run the scrape and report status to the CEO dashboard.
+
+    Re-raises on failure so the GH Actions job is marked failed too — the
+    error report is best-effort and fires before the re-raise.
+    """
+    started = time.monotonic()
+    try:
+        total_new, total = scrape()
+    except Exception as exc:
+        ceo_report.report(
+            "error",
+            f"scrape failed: {type(exc).__name__}: "
+            f"{str(exc).splitlines()[0][:120]}",
+            ok=False,
+            duration_ms=int((time.monotonic() - started) * 1000),
+        )
+        raise
+    ceo_report.report(
+        "ok",
+        f"{total_new} new/updated, {total} businesses in DB",
+        duration_ms=int((time.monotonic() - started) * 1000),
+    )
+    return total_new, total
 
 
 if __name__ == '__main__':
-    scrape()
+    run()

@@ -1,0 +1,54 @@
+name: Scrape businesses
+
+# Scrapes Berkeley businesses with no owned website into data/businesses.db
+# and reports run status to the CEO's Enterprise fleet dashboard (growth card).
+#
+# MANUAL ONLY for now (workflow_dispatch). The daily cron is intentionally
+# commented out until two decisions are made:
+#   1. Durable state — the DB lives in data/businesses.db, which is gitignored.
+#      Across CI runs it's persisted via actions/cache below (interim,
+#      best-effort). The robust upgrade is to move state to Supabase, matching
+#      shopify-arbitrage. Don't enable the cron until state is durable.
+#   2. Downstream stages — site generation (Vercel deploys, cost) and cold
+#      outreach (Resend, CAN-SPAM) stay human-triggered and are NOT in CI.
+#
+# Required GitHub secrets:
+#   GOOGLE_MAPS_API_KEY
+# Optional:
+#   CEOS_REPORT_SECRET   (lights up the growth card on ceos-enterprise)
+
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "0 8 * * *"  # 08:00 UTC daily — enable once state is durable
+
+concurrency:
+  group: berkeleybiz-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # Interim persistence: restore the latest cached DB, save a fresh copy
+      # each run. Replace with Supabase before enabling the cron.
+      - uses: actions/cache@v4
+        with:
+          path: data
+          key: businesses-db-${{ github.run_id }}
+          restore-keys: businesses-db-
+
+      - run: pip install -r scraper/requirements.txt
+
+      - run: python scrape.py
+        working-directory: scraper
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
