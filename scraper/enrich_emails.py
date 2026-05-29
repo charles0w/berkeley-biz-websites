@@ -41,6 +41,7 @@ JUNK_DOMAINS = {
     "google.com", "gmail.com", "facebook.com", "instagram.com",
     "apple.com", "icloud.com", "yahoo.com", "hotmail.com",  # too generic to attribute
     "w3.org", "schema.org", "openstreetmap.org",
+    "duckduckgo.com",  # error-lite@ appears on DDG bot-detection pages
 }
 
 
@@ -107,12 +108,12 @@ def enrich_one(business: dict, dry: bool = False) -> str | None:
     best = _clean_emails(emails)[0] if emails else None
 
     if best:
-        print(f"    → {best}")
+        print(f"    -> {best}")
         if not dry:
             with _conn() as c:
                 c.execute("UPDATE businesses SET email = ? WHERE place_id = ?", (best, business["place_id"]))
     else:
-        print(f"    → not found")
+        print(f"    -> not found")
 
     return best
 

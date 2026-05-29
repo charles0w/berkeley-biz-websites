@@ -34,10 +34,12 @@ def download_photos(photo_refs: list[str], output_dir: str) -> dict:
     downloaded: list[str] = []
 
     for i, ref in enumerate(photo_refs[:5]):
-        url = (
-            f"https://maps.googleapis.com/maps/api/place/photo"
-            f"?maxwidth=1600&photo_reference={ref}&key={GMAPS_KEY}"
-        )
+        # New Places API v1: ref is a full resource name like "places/ID/photos/ID"
+        # Legacy API: ref is a short photo_reference string
+        if ref.startswith("places/"):
+            url = f"https://places.googleapis.com/v1/{ref}/media?maxWidthPx=1600&key={GMAPS_KEY}"
+        else:
+            url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=1600&photo_reference={ref}&key={GMAPS_KEY}"
         try:
             resp = requests.get(url, allow_redirects=True, timeout=10)
             if resp.status_code == 200:

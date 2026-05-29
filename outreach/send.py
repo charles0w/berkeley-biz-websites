@@ -1,23 +1,29 @@
 """
-Send cold outreach emails and follow-ups to businesses using Resend.
+Send cold outreach emails and follow-ups to businesses.
+
+Sending backend (priority order):
+  1. Gmail SMTP  — set SMTP_PASS in .env (Google App Password for charles_ow@berkeley.edu)
+                   Go to myaccount.google.com → Security → App passwords → generate one
+  2. Resend API  — set RESEND_API_KEY and FROM_ADDRESS in .env (needs verified domain)
 
 Usage:
-    python email.py --list                          # businesses ready for outreach (site built + email set)
-    python email.py --preview <place_id>            # print email without sending
-    python email.py --send <place_id>               # send cold email to one business
-    python email.py --send-all                      # send cold email to all ready businesses
-    python email.py --follow-ups                    # send due follow-ups (day 4 and day 10)
-    python email.py --set-email <place_id> <email>  # add owner email to database
-    python email.py --set-name <place_id> <name>    # add owner first name to database
+    python send.py --list                          # businesses ready for outreach (site built + email set)
+    python send.py --preview <place_id>            # print email without sending
+    python send.py --send <place_id>               # send cold email to one business
+    python send.py --send-all                      # send cold email to all ready businesses (caps at 20/day)
+    python send.py --follow-ups                    # send due follow-ups (day 4 and day 10)
+    python send.py --set-email <place_id> <email>  # add owner email to database
+    python send.py --set-name <place_id> <name>    # add owner first name to database
 """
 
 import argparse
 import os
+import smtplib
 import sys
-from datetime import datetime, timezone, timedelta
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 
-import resend
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scraper"))
@@ -25,37 +31,43 @@ from db import get_business, get_businesses_ready_for_outreach, mark_outreach_se
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", "scraper", ".env"))
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
+YOUR_NAME    = os.environ.get("YOUR_NAME", "Charles")
+YOUR_EMAIL   = os.environ.get("YOUR_EMAIL", "")
+FROM_ADDRESS = os.environ.get("FROM_ADDRESS", YOUR_EMAIL)
 
-YOUR_NAME = os.environ.get("YOUR_NAME", "Charles")
-YOUR_EMAIL = os.environ.get("YOUR_EMAIL", "")
-FROM_ADDRESS = os.environ.get("FROM_ADDRESS", YOUR_EMAIL)  # e.g. charles@yourdomain.com
+# SMTP (Gmail / Berkeley Google Workspace)
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", YOUR_EMAIL)
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+
+# Resend fallback
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 TEMPLATES = {
-    "cold":     Path(__file__).parent / "templates" / "cold_email.html",
-    "follow1":  Path(__file__).parent / "templates" / "follow_up_1.html",
-    "follow2":  Path(__file__).parent / "templates" / "follow_up_2.html",
+    "cold":    Path(__file__).parent / "templates" / "cold_email.html",
+    "follow1": Path(__file__).parent / "templates" / "follow_up_1.html",
+    "follow2": Path(__file__).parent / "templates" / "follow_up_2.html",
 }
 
 FOLLOW_UP_DAYS = {"follow1": 4, "follow2": 10}
 
 
 # ---------------------------------------------------------------------------
-# DB helpers for follow-up tracking
+# DB helpers
 # ---------------------------------------------------------------------------
 
-def _ensure_followup_columns() -> None:
-    migrations = [
+def _ensure_columns() -> None:
+    for sql in [
         "ALTER TABLE businesses ADD COLUMN owner_first_name TEXT",
         "ALTER TABLE businesses ADD COLUMN follow_up_1_sent_at TEXT",
         "ALTER TABLE businesses ADD COLUMN follow_up_2_sent_at TEXT",
-    ]
-    with _conn() as c:
-        for sql in migrations:
-            try:
+    ]:
+        try:
+            with _conn() as c:
                 c.execute(sql)
-            except Exception:
-                pass
+        except Exception:
+            pass
 
 
 def set_owner_email(place_id: str, email: str) -> None:
@@ -77,26 +89,22 @@ def mark_follow_up_sent(place_id: str, which: str) -> None:
 def get_businesses_due_for_followup(which: str) -> list[dict]:
     days = FOLLOW_UP_DAYS[which]
     sent_col = "follow_up_1_sent_at" if which == "follow1" else "follow_up_2_sent_at"
-    # Prerequisite: cold email sent; follow1 also requires no reply; follow2 requires follow1 sent
     prereq = (
         "outreach_sent = 1 AND responded = 0 AND email IS NOT NULL"
         + (" AND follow_up_1_sent_at IS NOT NULL" if which == "follow2" else "")
     )
     with _conn() as c:
         rows = c.execute(
-            f"""
-            SELECT * FROM businesses
-            WHERE {prereq}
-              AND {sent_col} IS NULL
-              AND outreach_sent_at <= datetime('now', '-{days} days')
-            ORDER BY outreach_sent_at ASC
-            """,
+            f"""SELECT * FROM businesses
+                WHERE {prereq} AND {sent_col} IS NULL
+                  AND outreach_sent_at <= datetime('now', '-{days} days')
+                ORDER BY outreach_sent_at ASC""",
         ).fetchall()
         return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------
-# Email builder
+# Render
 # ---------------------------------------------------------------------------
 
 def _render(template_key: str, business: dict) -> tuple[str, str]:
@@ -114,15 +122,54 @@ def _render(template_key: str, business: dict) -> tuple[str, str]:
     )
 
     subjects = {
-        "cold":    f"I made a website for {business['name']} — feedback?",
-        "follow1": f"Re: I made a website for {business['name']} — feedback?",
+        "cold":    f"I made a website for {business['name']} - feedback?",
+        "follow1": f"Re: website for {business['name']}",
         "follow2": f"Last note about the {business['name']} site",
     }
     return subjects[template_key], html
 
 
 # ---------------------------------------------------------------------------
-# Send
+# Send backends
+# ---------------------------------------------------------------------------
+
+def _send_smtp(to_email: str, subject: str, html: str, from_name: str, from_addr: str) -> str:
+    """Send via Gmail SMTP. Returns message ID on success, raises on failure."""
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"{from_name} <{from_addr}>"
+    msg["To"]      = to_email
+    msg["Reply-To"] = from_addr
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASS)
+        server.sendmail(from_addr, [to_email], msg.as_bytes())
+
+    return f"smtp-{to_email}-ok"
+
+
+def _send_resend(to_email: str, subject: str, html: str, from_name: str, from_addr: str) -> str:
+    """Send via Resend API. Returns message ID on success, raises on failure."""
+    import resend as _resend
+    _resend.api_key = RESEND_API_KEY
+    params = {
+        "from": f"{from_name} <{from_addr}>",
+        "to": [to_email],
+        "subject": subject,
+        "html": html,
+    }
+    resp = _resend.Emails.send(params)
+    msg_id = resp.get("id")
+    if not msg_id:
+        raise RuntimeError(f"Resend error: {resp}")
+    return msg_id
+
+
+# ---------------------------------------------------------------------------
+# Main send orchestrator
 # ---------------------------------------------------------------------------
 
 def send_email(business: dict, template_key: str = "cold", dry_run: bool = False) -> bool:
@@ -136,28 +183,34 @@ def send_email(business: dict, template_key: str = "cold", dry_run: bool = False
     if dry_run:
         print(f"\n{'='*60}")
         print(f"To:      {to_email}")
-        print(f"From:    {FROM_ADDRESS}")
+        print(f"From:    {YOUR_NAME} <{FROM_ADDRESS}>")
         print(f"Subject: {subject}")
         print(f"{'='*60}")
-        print(html)
+        sys.stdout.buffer.write(html.encode("utf-8"))
+        sys.stdout.buffer.write(b"\n")
         return True
 
-    params = {
-        "from": f"{YOUR_NAME} <{FROM_ADDRESS}>",
-        "to": [to_email],
-        "subject": subject,
-        "html": html,
-    }
-    resp = resend.Emails.send(params)
-    if resp.get("id"):
+    # Choose backend
+    if SMTP_PASS:
+        backend = "SMTP"
+        send_fn = lambda: _send_smtp(to_email, subject, html, YOUR_NAME, FROM_ADDRESS)
+    elif RESEND_API_KEY:
+        backend = "Resend"
+        send_fn = lambda: _send_resend(to_email, subject, html, YOUR_NAME, FROM_ADDRESS)
+    else:
+        print("  ERROR: set SMTP_PASS (Gmail App Password) or RESEND_API_KEY in scraper/.env")
+        return False
+
+    try:
+        msg_id = send_fn()
         if template_key == "cold":
             mark_outreach_sent(business["place_id"])
         else:
             mark_follow_up_sent(business["place_id"], template_key)
-        print(f"  Sent [{template_key}] → {to_email}  (id: {resp['id']})")
+        print(f"  Sent [{template_key}] via {backend} -> {to_email}  ({msg_id})")
         return True
-    else:
-        print(f"  ERROR sending to {to_email}: {resp}")
+    except Exception as e:
+        print(f"  ERROR [{backend}] sending to {to_email}: {e}")
         return False
 
 
@@ -166,16 +219,16 @@ def send_email(business: dict, template_key: str = "cold", dry_run: bool = False
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    _ensure_followup_columns()
+    _ensure_columns()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--list",       action="store_true",  help="List businesses ready for outreach")
-    parser.add_argument("--preview",    metavar="PLACE_ID",   help="Preview cold email without sending")
-    parser.add_argument("--send",       metavar="PLACE_ID",   help="Send cold email to one business")
-    parser.add_argument("--send-all",   action="store_true",  help="Send cold email to all ready businesses")
-    parser.add_argument("--follow-ups", action="store_true",  help="Send due follow-ups (day 4 and day 10)")
-    parser.add_argument("--set-email",  nargs=2, metavar=("PLACE_ID", "EMAIL"), help="Save owner email to DB")
-    parser.add_argument("--set-name",   nargs=2, metavar=("PLACE_ID", "NAME"),  help="Save owner first name to DB")
+    parser.add_argument("--list",      action="store_true")
+    parser.add_argument("--preview",   metavar="PLACE_ID")
+    parser.add_argument("--send",      metavar="PLACE_ID")
+    parser.add_argument("--send-all",  action="store_true")
+    parser.add_argument("--follow-ups",action="store_true")
+    parser.add_argument("--set-email", nargs=2, metavar=("PLACE_ID", "EMAIL"))
+    parser.add_argument("--set-name",  nargs=2, metavar=("PLACE_ID", "NAME"))
     args = parser.parse_args()
 
     if args.list:
@@ -214,7 +267,7 @@ def main() -> None:
 
     elif args.send_all:
         businesses = [b for b in get_businesses_ready_for_outreach() if b.get("email")]
-        print(f"Sending to {len(businesses)} businesses…\n")
+        print(f"Sending to {len(businesses)} businesses...\n")
         for b in businesses:
             send_email(b, template_key="cold")
 
