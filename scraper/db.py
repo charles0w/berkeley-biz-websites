@@ -10,6 +10,7 @@ The public `Database()` interface is identical for all backends.
 Re-scraping a known place_id only updates the freshly-scraped columns —
 demo_url and the outreach_* fields are preserved across all backends.
 """
+from __future__ import annotations
 import os
 import re
 import sqlite3

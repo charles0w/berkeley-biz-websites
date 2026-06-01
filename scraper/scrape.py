@@ -10,7 +10,6 @@ import json
 import time
 import urllib.request
 import urllib.parse
-print("scrape.py v12 — direct HTTP detail, inline reporter", flush=True)
 from datetime import datetime, timezone
 import googlemaps
 from dotenv import load_dotenv
@@ -84,8 +83,6 @@ _DETAIL_FIELDS = ','.join([
 def place_detail(api_key: str, place_id: str) -> dict:
     """Direct HTTP call to Places Details API — avoids the googlemaps library
     injecting deprecated 'photos'/'types' field names into every request."""
-    qs = urllib.parse.urlencode({'place_id': place_id, 'fields': _DETAIL_FIELDS, 'key': 'REDACTED'})
-    print(f'[debug] detail call: {qs}', flush=True)
     qs = urllib.parse.urlencode({'place_id': place_id, 'fields': _DETAIL_FIELDS, 'key': api_key})
     url = 'https://maps.googleapis.com/maps/api/place/details/json?' + qs
     with urllib.request.urlopen(url, timeout=10) as resp:
@@ -158,7 +155,6 @@ def scrape():
                 print(f'  API error: {e}')
                 break
 
-            print(f'  status={response.get("status")} results={len(response.get("results", []))}', flush=True)
             for place in response.get('results', []):
                 place_id = place['place_id']
 
