@@ -83,16 +83,12 @@ _DETAIL_FIELDS = ','.join([
 def place_detail(api_key: str, place_id: str) -> dict:
     """Direct HTTP call to Places Details API — avoids the googlemaps library
     injecting deprecated 'photos'/'types' field names into every request."""
-    url = (
-        'https://maps.googleapis.com/maps/api/place/details/json'
-        '?place_id=' + urllib.parse.quote(place_id) +
-        '&fields=' + urllib.parse.quote(_DETAIL_FIELDS) +
-        '&key=' + urllib.parse.quote(api_key)
-    )
+    qs = urllib.parse.urlencode({'place_id': place_id, 'fields': _DETAIL_FIELDS, 'key': api_key})
+    url = 'https://maps.googleapis.com/maps/api/place/details/json?' + qs
     with urllib.request.urlopen(url, timeout=10) as resp:
         data = json.loads(resp.read())
     if data.get('status') not in ('OK', 'ZERO_RESULTS'):
-        raise RuntimeError(f"Places API error: {data.get('status')} — {data.get('error_message', '')}")
+        raise RuntimeError(data.get('error_message') or data.get('status', 'unknown error'))
     return data.get('result', {})
 
 
