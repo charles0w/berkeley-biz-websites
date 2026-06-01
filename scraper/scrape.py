@@ -29,11 +29,27 @@ TYPES_TO_SCRAPE = [
 ]
 
 PLACEHOLDER_DOMAINS = {
-    'yelp.com', 'facebook.com', 'instagram.com', 'tripadvisor.com',
-    'grubhub.com', 'doordash.com', 'ubereats.com', 'foursquare.com',
-    'yellowpages.com', 'whitepages.com', 'edan.io', 'fresha.com',
-    'vagaro.com', 'booksy.com', 'square.site', 'sites.google.com',
-    'linktree.com', 'linktr.ee', 'biz.yelp.com', 'maps.google.com',
+    # Listing / review sites
+    'yelp.com', 'tripadvisor.com', 'foursquare.com',
+    'yellowpages.com', 'whitepages.com', 'biz.yelp.com',
+    # Social / link-in-bio
+    'facebook.com', 'instagram.com', 'linktree.com', 'linktr.ee',
+    # Delivery
+    'grubhub.com', 'doordash.com', 'ubereats.com',
+    # Booking / scheduling platforms (not owned sites)
+    'edan.io', 'fresha.com', 'vagaro.com', 'booksy.com',
+    'schedulicity.com', 'mindbodyonline.com', 'styleseat.com',
+    # Google
+    'sites.google.com', 'maps.google.com', 'business.google.com',
+    # Generic drag-and-drop builders (no real brand presence)
+    'square.site', 'squareup.com',
+    'wix.com', 'wixsite.com',
+    'squarespace.com',
+    'godaddysites.com', 'godaddy.com/website',
+    'weebly.com',
+    'strikingly.com',
+    'jimdo.com',
+    'yolasite.com',
 }
 
 
@@ -168,16 +184,13 @@ def run():
     except Exception as exc:
         ceo_report.report(
             "error",
-            f"scrape failed: {type(exc).__name__}: "
-            f"{str(exc).splitlines()[0][:120]}",
+            f"scrape failed: {type(exc).__name__}: {str(exc).splitlines()[0][:120]}",
             ok=False,
-            duration_ms=int((time.monotonic() - started) * 1000),
         )
         raise
     ceo_report.report(
         "ok",
         f"{total_new} new/updated, {total} businesses in DB",
-        duration_ms=int((time.monotonic() - started) * 1000),
     )
     return total_new, total
 
