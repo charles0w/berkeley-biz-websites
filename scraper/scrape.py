@@ -36,11 +36,6 @@ PLACEHOLDER_DOMAINS = {
     'linktree.com', 'linktr.ee', 'biz.yelp.com', 'maps.google.com',
 }
 
-DETAIL_FIELDS = [
-    'name', 'formatted_address', 'formatted_phone_number',
-    'website', 'opening_hours', 'rating', 'user_ratings_total',
-    'geometry',
-]
 
 
 def is_placeholder(url: str) -> bool:
@@ -110,7 +105,7 @@ def scrape():
                 place_id = place['place_id']
 
                 try:
-                    detail = gmaps.place(place_id, fields=DETAIL_FIELDS)['result']
+                    detail = gmaps.place(place_id)['result']
                 except Exception as e:
                     print(f'  detail error for {place.get("name")}: {e}')
                     continue
