@@ -3,13 +3,6 @@ name: Scrape businesses
 # Scrapes Berkeley businesses with no owned website into Neon Postgres (durable)
 # shared with the CEO's Enterprise fleet dashboard (growth card reads it directly).
 #
-# State lives in the ceos-enterprise Neon DB (businesses table), so runs
-# persist across CI. The scraper skips silently when GOOGLE_MAPS_API_KEY isn't
-# set, so this cron is safe to leave enabled before secrets are configured.
-#
-# Downstream stages — site generation (Vercel deploys, cost) and cold outreach
-# (Resend, CAN-SPAM) — stay human-triggered and are intentionally NOT in CI.
-#
 # Required GitHub secrets:
 #   GOOGLE_MAPS_API_KEY
 #   DATABASE_URL         (Neon unpooled URL — copy from ceos-enterprise Vercel project)
@@ -30,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - run: find . -name "*.pyc" -delete && find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+        name: Clear Python bytecode cache
 
       - uses: actions/setup-python@v5
         with:

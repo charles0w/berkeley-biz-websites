@@ -10,6 +10,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+print("scrape.py v12 — direct HTTP detail, inline reporter", flush=True)
 from datetime import datetime, timezone
 import googlemaps
 from dotenv import load_dotenv
