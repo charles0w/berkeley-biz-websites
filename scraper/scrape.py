@@ -9,6 +9,8 @@ import os
 import sys
 import json
 import time
+import urllib.request
+import urllib.parse
 import googlemaps
 from dotenv import load_dotenv
 from db import Database
@@ -52,6 +54,28 @@ PLACEHOLDER_DOMAINS = {
     'yolasite.com',
 }
 
+
+
+_DETAIL_FIELDS = ','.join([
+    'name', 'formatted_address', 'formatted_phone_number',
+    'website', 'opening_hours', 'rating', 'user_ratings_total', 'geometry',
+])
+
+
+def place_detail(api_key: str, place_id: str) -> dict:
+    """Direct HTTP call to Places Details API — avoids the googlemaps library
+    injecting deprecated 'photos'/'types' field names into every request."""
+    url = (
+        'https://maps.googleapis.com/maps/api/place/details/json'
+        '?place_id=' + urllib.parse.quote(place_id) +
+        '&fields=' + urllib.parse.quote(_DETAIL_FIELDS) +
+        '&key=' + urllib.parse.quote(api_key)
+    )
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        data = json.loads(resp.read())
+    if data.get('status') not in ('OK', 'ZERO_RESULTS'):
+        raise RuntimeError(f"Places API error: {data.get('status')} — {data.get('error_message', '')}")
+    return data.get('result', {})
 
 
 def is_placeholder(url: str) -> bool:
@@ -121,7 +145,7 @@ def scrape():
                 place_id = place['place_id']
 
                 try:
-                    detail = gmaps.place(place_id)['result']
+                    detail = place_detail(api_key, place_id)
                 except Exception as e:
                     print(f'  detail error for {place.get("name")}: {e}')
                     continue
