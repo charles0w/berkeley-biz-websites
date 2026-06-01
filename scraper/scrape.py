@@ -39,7 +39,7 @@ PLACEHOLDER_DOMAINS = {
 DETAIL_FIELDS = [
     'name', 'formatted_address', 'formatted_phone_number',
     'website', 'opening_hours', 'rating', 'user_ratings_total',
-    'photos', 'types', 'geometry',
+    'photo', 'type', 'geometry',
 ]
 
 

@@ -13,7 +13,7 @@ AGENT_ID = "growth"
 DEFAULT_URL = "https://ceos-enterprise.vercel.app"
 
 
-def report(state: str, summary: str = "", ok: bool = True) -> None:
+def report(state: str, summary: str = "", ok: bool = True, **_kwargs) -> None:
     secret = os.environ.get("CEOS_REPORT_SECRET", "").strip()
     if not secret:
         return
