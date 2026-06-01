@@ -157,6 +157,7 @@ def scrape():
                 print(f'  API error: {e}')
                 break
 
+            print(f'  status={response.get("status")} results={len(response.get("results", []))}', flush=True)
             for place in response.get('results', []):
                 place_id = place['place_id']
 
