@@ -6,17 +6,35 @@ Usage:
     cd scraper && python scrape.py
 """
 import os
-import sys
 import json
 import time
 import urllib.request
 import urllib.parse
+from datetime import datetime, timezone
 import googlemaps
 from dotenv import load_dotenv
 from db import Database
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import ceo_report
+_CEOS_URL = os.environ.get("CEOS_DASHBOARD_URL", "https://ceos-enterprise.vercel.app")
+
+def _report(state: str, summary: str, ok: bool = True) -> None:
+    secret = os.environ.get("CEOS_REPORT_SECRET", "").strip()
+    if not secret:
+        return
+    try:
+        payload = json.dumps({
+            "agentId": "growth",
+            "status": {"state": state, "lastRun": datetime.now(timezone.utc).isoformat(),
+                       "summary": summary[:280], "ok": ok},
+        }).encode()
+        req = urllib.request.Request(
+            f"{_CEOS_URL.rstrip('/')}/api/report", data=payload,
+            headers={"x-report-secret": secret, "content-type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"[ceo_report] {e}")
 
 load_dotenv()
 
@@ -206,16 +224,13 @@ def run():
     try:
         total_new, total = scrape()
     except Exception as exc:
-        ceo_report.report(
+        _report(
             "error",
             f"scrape failed: {type(exc).__name__}: {str(exc).splitlines()[0][:120]}",
             ok=False,
         )
         raise
-    ceo_report.report(
-        "ok",
-        f"{total_new} new/updated, {total} businesses in DB",
-    )
+    _report("ok", f"{total_new} new/updated, {total} businesses in DB")
     return total_new, total
 
 
