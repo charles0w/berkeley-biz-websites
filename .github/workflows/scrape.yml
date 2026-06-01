@@ -12,7 +12,9 @@ name: Scrape businesses
 #
 # Required GitHub secrets:
 #   GOOGLE_MAPS_API_KEY
-#   DATABASE_URL   (Neon unpooled URL — copy from ceos-enterprise Vercel project)
+#   DATABASE_URL         (Neon unpooled URL — copy from ceos-enterprise Vercel project)
+# Optional:
+#   CEOS_REPORT_SECRET   (lights up the growth card run timestamp on ceos-enterprise)
 
 on:
   workflow_dispatch:
@@ -41,3 +43,4 @@ jobs:
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
