@@ -1,21 +1,18 @@
 name: Scrape businesses
 
-# Scrapes Berkeley businesses with no owned website into Supabase (durable)
-# and reports run status to the CEO's Enterprise fleet dashboard (growth card).
+# Scrapes Berkeley businesses with no owned website into Neon Postgres (durable)
+# shared with the CEO's Enterprise fleet dashboard (growth card reads it directly).
 #
-# State lives in Supabase (see scraper/db.py + supabase/schema.sql), so runs
-# persist across CI. The scraper skips silently (green, no report) when
-# GOOGLE_MAPS_API_KEY isn't set, so this cron is safe to leave enabled before
-# secrets are configured — it activates the moment the secret is added.
+# State lives in the ceos-enterprise Neon DB (businesses table), so runs
+# persist across CI. The scraper skips silently when GOOGLE_MAPS_API_KEY isn't
+# set, so this cron is safe to leave enabled before secrets are configured.
 #
 # Downstream stages — site generation (Vercel deploys, cost) and cold outreach
 # (Resend, CAN-SPAM) — stay human-triggered and are intentionally NOT in CI.
 #
-# Required GitHub secrets (for the scrape to actually run):
+# Required GitHub secrets:
 #   GOOGLE_MAPS_API_KEY
-#   SUPABASE_URL, SUPABASE_SERVICE_KEY   (durable state; run supabase/schema.sql once)
-# Optional:
-#   CEOS_REPORT_SECRET   (lights up the growth card on ceos-enterprise)
+#   DATABASE_URL   (Neon unpooled URL — copy from ceos-enterprise Vercel project)
 
 on:
   workflow_dispatch:
@@ -43,6 +40,4 @@ jobs:
         working-directory: scraper
         env:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

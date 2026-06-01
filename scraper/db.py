@@ -1,15 +1,14 @@
-"""Business store with two interchangeable backends.
+"""Business store with three interchangeable backends.
 
-- **Supabase** (when SUPABASE_URL + SUPABASE_SERVICE_KEY are set) — durable
-  state that survives GitHub Actions runs. This is what makes the scrape
-  cron safe to enable. Matches the pattern used by shopify-arbitrage.
-- **SQLite** (fallback) — local dev / no-creds. Same `data/businesses.db`
-  file as before.
+Priority order:
+- **Postgres** (when DATABASE_URL is set) — direct Neon connection; shared
+  with CEO Enterprise so the cockpit can read Growth stats in real time.
+- **Supabase** (when SUPABASE_URL + SUPABASE_SERVICE_KEY are set) — legacy path.
+- **SQLite** (fallback) — local dev / no-creds.
 
-The public `Database()` interface is identical for both backends so the
-scraper/generator/outreach callers don't change. Re-scraping a known
-place_id only updates the freshly-scraped columns — demo_url and the
-outreach_* fields are preserved across both backends.
+The public `Database()` interface is identical for all backends.
+Re-scraping a known place_id only updates the freshly-scraped columns —
+demo_url and the outreach_* fields are preserved across all backends.
 """
 import os
 import re
@@ -36,12 +35,21 @@ def slugify(name: str) -> str:
 
 class Database:
     def __init__(self):
-        url = os.environ.get('SUPABASE_URL', '')
-        key = os.environ.get('SUPABASE_SERVICE_KEY', '')
-        if url and key:
+        pg_url = os.environ.get('DATABASE_URL', '')
+        sb_url = os.environ.get('SUPABASE_URL', '')
+        sb_key = os.environ.get('SUPABASE_SERVICE_KEY', '')
+
+        if pg_url:
+            import psycopg2
+            import psycopg2.extras
+            self.backend = 'postgres'
+            self.conn = psycopg2.connect(pg_url)
+            self.conn.autocommit = False
+            self._cur = lambda: self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        elif sb_url and sb_key:
             from supabase import create_client
             self.backend = 'supabase'
-            self.sb = create_client(url, key)
+            self.sb = create_client(sb_url, sb_key)
         else:
             self.backend = 'sqlite'
             os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -91,10 +99,26 @@ class Database:
         if not data.get('slug'):
             data['slug'] = slugify(data['name'])
 
+        if self.backend == 'postgres':
+            scrape_data = {k: v for k, v in data.items() if k in _SCRAPE_COLS}
+            cols = ', '.join(data.keys())
+            placeholders = ', '.join([f'%({k})s' for k in data])
+            updates = ', '.join(
+                f"{k} = EXCLUDED.{k}" for k in scrape_data
+            )
+            with self._cur() as cur:
+                cur.execute(
+                    f'''INSERT INTO businesses ({cols}) VALUES ({placeholders})
+                        ON CONFLICT (place_id) DO UPDATE SET {updates},
+                        updated_at = now()''',
+                    data
+                )
+            self.conn.commit()
+            return
+
         if self.backend == 'supabase':
             existing = self.get_business(data['place_id'])
             if existing:
-                # Only touch scraped columns — preserve demo_url/outreach_*.
                 self.update_business(data['place_id'], **{
                     k: v for k, v in data.items()
                     if k != 'place_id' and k in _SCRAPE_COLS
@@ -117,6 +141,12 @@ class Database:
         self.conn.commit()
 
     def get_business(self, place_id: str) -> dict | None:
+        if self.backend == 'postgres':
+            with self._cur() as cur:
+                cur.execute('SELECT * FROM businesses WHERE place_id = %s', (place_id,))
+                row = cur.fetchone()
+            return dict(row) if row else None
+
         if self.backend == 'supabase':
             res = (self.sb.table('businesses').select('*')
                    .eq('place_id', place_id).limit(1).execute())
@@ -128,6 +158,18 @@ class Database:
         return dict(row) if row else None
 
     def get_all(self, status: str | None = None) -> list[dict]:
+        if self.backend == 'postgres':
+            with self._cur() as cur:
+                if status:
+                    cur.execute(
+                        'SELECT * FROM businesses WHERE status = %s ORDER BY rating DESC, review_count DESC',
+                        (status,)
+                    )
+                else:
+                    cur.execute('SELECT * FROM businesses ORDER BY rating DESC, review_count DESC')
+                rows = cur.fetchall()
+            return [dict(r) for r in rows]
+
         if self.backend == 'supabase':
             q = self.sb.table('businesses').select('*')
             if status:
@@ -147,6 +189,16 @@ class Database:
         return [dict(r) for r in rows]
 
     def update_business(self, place_id: str, **kwargs):
+        if self.backend == 'postgres':
+            sets = ', '.join(f"{k} = %({k})s" for k in kwargs)
+            with self._cur() as cur:
+                cur.execute(
+                    f"UPDATE businesses SET {sets}, updated_at = now() WHERE place_id = %(place_id)s",
+                    {**kwargs, 'place_id': place_id}
+                )
+            self.conn.commit()
+            return
+
         if self.backend == 'supabase':
             payload = dict(kwargs)
             payload['updated_at'] = datetime.now(timezone.utc).isoformat()
@@ -161,6 +213,11 @@ class Database:
         self.conn.commit()
 
     def count(self) -> int:
+        if self.backend == 'postgres':
+            with self._cur() as cur:
+                cur.execute('SELECT COUNT(*) FROM businesses')
+                return cur.fetchone()['count']
+
         if self.backend == 'supabase':
             res = self.sb.table('businesses').select('place_id', count='exact').execute()
             return res.count or 0
