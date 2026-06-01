@@ -39,7 +39,7 @@ PLACEHOLDER_DOMAINS = {
 DETAIL_FIELDS = [
     'name', 'formatted_address', 'formatted_phone_number',
     'website', 'opening_hours', 'rating', 'user_ratings_total',
-    'photo', 'type', 'geometry',
+    'geometry',
 ]
 
 
@@ -120,7 +120,9 @@ def scrape():
                     continue  # has a real owned site — skip
 
                 hours = parse_hours(detail.get('opening_hours', {}))
-                photo_refs = [p['photo_reference'] for p in detail.get('photos', [])[:6]]
+                # types and photos come from the nearby result (not detail)
+                # to avoid the invalid field names issue with the Places API.
+                photo_refs = [p['photo_reference'] for p in place.get('photos', [])[:6]]
 
                 db.upsert_business({
                     'place_id': place_id,
@@ -130,7 +132,7 @@ def scrape():
                     'website': website,
                     'rating': detail.get('rating', 0),
                     'review_count': detail.get('user_ratings_total', 0),
-                    'category': classify_category(detail.get('types', [])),
+                    'category': classify_category(place.get('types', [])),
                     'hours_json': json.dumps(hours),
                     'photo_refs': json.dumps(photo_refs),
                     'lat': detail['geometry']['location']['lat'],
