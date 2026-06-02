@@ -1,0 +1,72 @@
+name: Generate demo sites
+
+# Generates and deploys demo sites for all scraped businesses that don't
+# yet have a demo_url. Safe to re-run — skips any business that already
+# has a site. Each run processes up to 20 businesses to stay within the
+# GitHub Actions 6-hour job limit.
+#
+# Required GitHub secrets:
+#   GOOGLE_MAPS_API_KEY
+#   ANTHROPIC_API_KEY
+#   VERCEL_TOKEN        (from vercel.com/account/tokens)
+#   DATABASE_URL        (Neon unpooled URL)
+# Optional:
+#   CEOS_REPORT_SECRET  (updates growth card on ceos-enterprise)
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max businesses to process (default: 20)"
+        required: false
+        default: "20"
+      retry_errors:
+        description: "Also retry status=error rows"
+        required: false
+        default: "false"
+
+concurrency:
+  group: berkeleybiz-generate
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install scraper deps
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install generator deps
+        run: pip install -r generator/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Generate sites
+        working-directory: generator
+        env:
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+          INPUT_LIMIT: ${{ github.event.inputs.limit || '20' }}
+          INPUT_RETRY_ERRORS: ${{ github.event.inputs.retry_errors || 'false' }}
+        run: |
+          EXTRA=""
+          if [ "$INPUT_RETRY_ERRORS" = "true" ]; then
+            EXTRA="--retry-errors"
+          fi
+          python batch_generate.py --limit "$INPUT_LIMIT" $EXTRA
