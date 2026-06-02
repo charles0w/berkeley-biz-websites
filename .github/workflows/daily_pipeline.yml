@@ -1,0 +1,83 @@
+name: Daily pipeline
+
+# Full automation: enrich emails → send outreach → send follow-ups
+# Runs daily after the scraper (scraper runs 08:00 UTC, this runs 09:00 UTC).
+# Site generation is manual-only (generate.yml) to control Vercel spend.
+#
+# Required GitHub secrets:
+#   DATABASE_URL          (Neon unpooled URL)
+#   RESEND_API_KEY
+#   FROM_EMAIL            (verified Resend sender address)
+# Optional:
+#   GOOGLE_MAPS_API_KEY   (used by enrichment for photo fallbacks)
+#   CEOS_REPORT_SECRET    (updates growth card on ceos-enterprise)
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # 09:00 UTC daily (after scraper at 08:00)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (preview only, no emails sent)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: berkeleybiz-pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install scraper deps
+        run: pip install -r scraper/requirements.txt
+
+      - name: Install outreach deps
+        run: pip install -r outreach/requirements.txt
+
+      - name: 1 — Enrich emails (up to 50 per run)
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: python enrich_emails.py --limit 50
+
+      - name: 2 — Send v1 outreach to new leads
+        working-directory: pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python run_outreach.py --dry-run
+          else
+            python run_outreach.py
+          fi
+
+      - name: 3 — Send follow-ups (v2/v3) to aged leads
+        working-directory: pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            python followup.py --dry-run
+          else
+            python followup.py
+          fi
