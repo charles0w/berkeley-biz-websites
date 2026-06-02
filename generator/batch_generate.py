@@ -17,6 +17,7 @@ Required env vars (scraper/.env or GitHub secrets):
     VERCEL_TOKEN
     DATABASE_URL
 """
+from __future__ import annotations
 import os
 import sys
 import time
@@ -26,7 +27,6 @@ import urllib.request
 import urllib.parse
 from datetime import datetime, timezone
 
-from __future__ import annotations
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'scraper', '.env'))
