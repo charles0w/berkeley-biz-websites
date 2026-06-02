@@ -123,7 +123,8 @@ def deploy_to_vercel(work_dir: str, project_name: str) -> str:
         vercel_bin = 'vercel'
 
     result = subprocess.run(
-        [vercel_bin, '--prod', '--yes', '--token', VERCEL_TOKEN],
+        [vercel_bin, '--prod', '--yes', '--scope', 'charles-ows-projects',
+         '--token', VERCEL_TOKEN],
         cwd=work_dir,
         capture_output=True, text=True,
     )
