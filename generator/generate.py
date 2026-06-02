@@ -123,21 +123,35 @@ def deploy_to_vercel(work_dir: str, project_name: str) -> str:
         vercel_bin = 'vercel'
 
     result = subprocess.run(
-        [vercel_bin, '--prod', '--yes', '--scope', 'charles-ows-projects',
-         '--token', VERCEL_TOKEN],
+        [vercel_bin, '--prod', '--yes', '--no-wait',
+         '--scope', 'charles-ows-projects', '--token', VERCEL_TOKEN],
         cwd=work_dir,
         capture_output=True, text=True,
     )
+    # --no-wait: Vercel returns 0 once the deployment is queued.
+    # ECONNRESET during polling is also non-fatal since the build runs on Vercel.
     if result.returncode != 0:
-        print('STDOUT:', result.stdout[-1000:])
-        print('STDERR:', result.stderr[-1000:])
-        raise RuntimeError('Vercel deploy failed')
+        # Surface the error but treat ECONNRESET as a likely success
+        if 'ECONNRESET' in result.stdout or 'ECONNRESET' in result.stderr:
+            print('  (ECONNRESET during poll — deployment queued, using deterministic URL)')
+        else:
+            print('STDOUT:', result.stdout[-1000:])
+            print('STDERR:', result.stderr[-1000:])
+            raise RuntimeError('Vercel deploy failed')
 
+    # Try to extract the production URL from CLI output
+    for line in result.stdout.splitlines() + result.stderr.splitlines():
+        line = line.strip()
+        if line.startswith('Production:'):
+            url = line.split('Production:', 1)[-1].strip().split()[0]
+            if url.startswith('https://'):
+                return url
     for line in reversed(result.stdout.splitlines()):
         line = line.strip()
-        if line.startswith('https://'):
+        if line.startswith('https://') and 'vercel.app' in line:
             return line
 
+    # Deterministic production URL — always <project-name>.vercel.app
     return f'https://{project_name}.vercel.app'
 
 

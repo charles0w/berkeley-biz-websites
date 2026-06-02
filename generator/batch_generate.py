@@ -93,6 +93,12 @@ def run(limit: int | None = None, retry_errors: bool = False, dry_run: bool = Fa
         place_id = biz['place_id']
         name = biz['name']
         print(f'[{i+1}/{total}] {name}')
+        # Reconnect to DB every 10 sites — Neon drops idle connections after ~5 min
+        if i > 0 and i % 10 == 0:
+            try:
+                db = Database()
+            except Exception:
+                pass
         try:
             generate_site(place_id, build_only=dry_run)
             done += 1
@@ -101,7 +107,14 @@ def run(limit: int | None = None, retry_errors: bool = False, dry_run: bool = Fa
             failed += 1
             print(f'  ✗ failed: {e}')
             if not dry_run:
-                db.update_business(place_id, status='error', notes=str(e)[:500])
+                try:
+                    db.update_business(place_id, status='error', notes=str(e)[:500])
+                except Exception:
+                    db = Database()
+                    try:
+                        db.update_business(place_id, status='error', notes=str(e)[:500])
+                    except Exception:
+                        pass
         if i < total - 1:
             time.sleep(_DELAY_BETWEEN_DEPLOYS_S)
 
