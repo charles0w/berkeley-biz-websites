@@ -15,6 +15,7 @@ Usage:
     python enrich_emails.py --limit 20       # cap per run
     python enrich_emails.py --re-enrich      # retry already-enriched rows
 """
+from __future__ import annotations
 import os
 import re
 import sys
