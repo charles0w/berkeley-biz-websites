@@ -38,14 +38,19 @@ _EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}')
 
 # Domains that are never real business owner emails
 _JUNK_DOMAINS = {
-    'sentry.io', 'example.com', 'wixpress.com', 'squarespace.com',
+    'sentry.io', 'sentry-next.wixpress.com', 'wixpress.com',
+    'example.com', 'squarespace.com',
     'facebook.com', 'instagram.com', 'twitter.com', 'google.com',
     'apple.com', 'microsoft.com', 'amazonaws.com', 'cloudflare.com',
     'mailchimp.com', 'sendgrid.net', 'resend.com',
+    'duckduckgo.com', 'yelp.com', 'tripadvisor.com',
+    'fonts.gstatic.com', 'googleapis.com', 'gstatic.com',
+    'w3.org', 'schema.org', 'opengraph.io',
 }
 _JUNK_PREFIXES = {'noreply', 'no-reply', 'donotreply', 'mailer', 'bounce',
                   'admin', 'postmaster', 'abuse', 'webmaster', 'privacy',
-                  'support@google', 'support@apple'}
+                  'support@google', 'support@apple', 'error-lite',
+                  'error', 'test', 'sample', 'info@yelp', 'news@'}
 
 _HEADERS = {
     'User-Agent': (
@@ -190,10 +195,10 @@ def _from_ddg(name: str, address: str) -> str | None:
     if emails:
         return emails[0]
 
-    # Second try: broader
+    # Second try: broader (longer delay to avoid rate-limiting)
     query2 = f'{name} Berkeley CA email'
     url2 = 'https://html.duckduckgo.com/html/?' + urllib.parse.urlencode({'q': query2})
-    time.sleep(2)
+    time.sleep(12)
     html2 = _fetch(url2, timeout=15)
     emails2 = _extract_emails(html2)
     return emails2[0] if emails2 else None
@@ -221,7 +226,7 @@ def enrich_one(biz: dict) -> str | None:
     # Strategy 2: DuckDuckGo
     print(f'    → DuckDuckGo search...')
     email = _from_ddg(biz['name'], biz.get('address', ''))
-    time.sleep(2.5)
+    time.sleep(10)  # polite rate-limit for DDG
     return email
 
 
