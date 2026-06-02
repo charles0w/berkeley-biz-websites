@@ -26,6 +26,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime, timezone
 
+from __future__ import annotations
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'scraper', '.env'))

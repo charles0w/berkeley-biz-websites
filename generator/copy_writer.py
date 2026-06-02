@@ -1,6 +1,7 @@
 """
 Generate tagline + about paragraph for a business using Claude Haiku.
 """
+from __future__ import annotations
 import os
 import anthropic
 
