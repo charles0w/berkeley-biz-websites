@@ -103,14 +103,33 @@ def build_site(biz: dict, work_dir: str):
 
 
 def deploy_to_vercel(work_dir: str, project_name: str) -> str:
+    # Write vercel.json with project name (--name flag deprecated in CLI v39+)
+    vercel_cfg = os.path.join(work_dir, 'vercel.json')
+    existing = {}
+    if os.path.exists(vercel_cfg):
+        with open(vercel_cfg) as f:
+            import json as _json
+            try:
+                existing = _json.load(f)
+            except Exception:
+                pass
+    existing['name'] = project_name
+    with open(vercel_cfg, 'w') as f:
+        import json as _json
+        _json.dump(existing, f)
+
+    vercel_bin = os.path.expanduser('~/.local/bin/vercel')
+    if not os.path.exists(vercel_bin):
+        vercel_bin = 'vercel'
+
     result = subprocess.run(
-        ['npx', 'vercel', '--prod', '--yes', '--name', project_name,
-         '--token', VERCEL_TOKEN],
+        [vercel_bin, '--prod', '--yes', '--token', VERCEL_TOKEN],
         cwd=work_dir,
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        print(result.stderr[-2000:])
+        print('STDOUT:', result.stdout[-1000:])
+        print('STDERR:', result.stderr[-1000:])
         raise RuntimeError('Vercel deploy failed')
 
     for line in reversed(result.stdout.splitlines()):
