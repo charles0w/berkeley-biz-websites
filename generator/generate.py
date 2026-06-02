@@ -15,6 +15,7 @@ import subprocess
 import tempfile
 import argparse
 import requests
+from decimal import Decimal
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'scraper', '.env'))
@@ -76,7 +77,7 @@ def build_site(biz: dict, work_dir: str):
     }
 
     with open(os.path.join(work_dir, 'business.json'), 'w') as f:
-        json.dump(business_data, f, indent=2)
+        json.dump(business_data, f, indent=2, default=lambda x: float(x) if isinstance(x, Decimal) else str(x))
 
     # Copy downloaded photos into the work dir
     dest_images = os.path.join(work_dir, 'public', 'images')
