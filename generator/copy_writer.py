@@ -67,9 +67,9 @@ ABOUT: [2-3 sentences — neighborhood context, what the place is like, why peop
         clean = line.strip().lstrip('*').lstrip('_').lstrip('#').strip()
         upper = clean.upper()
         if upper.startswith('TAGLINE:'):
-            tagline = clean[8:].strip().rstrip('.')
+            tagline = clean[8:].strip().strip('*').strip('_').strip('`').rstrip('.')
         elif upper.startswith('ABOUT:'):
-            about = clean[6:].strip()
+            about = clean[6:].strip().strip('*').strip('_').strip('`')
 
     # Fallback: if parsing failed, try to salvage something from the text
     if not tagline:
