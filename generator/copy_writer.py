@@ -63,12 +63,37 @@ ABOUT: [2-3 sentences — neighborhood context, what the place is like, why peop
     tagline, about = '', ''
 
     for line in text.splitlines():
-        if line.startswith('TAGLINE:'):
-            tagline = line.removeprefix('TAGLINE:').strip().rstrip('.')
-        elif line.startswith('ABOUT:'):
-            about = line.removeprefix('ABOUT:').strip()
+        # Strip markdown bold/italic markers before matching
+        clean = line.strip().lstrip('*').lstrip('_').lstrip('#').strip()
+        upper = clean.upper()
+        if upper.startswith('TAGLINE:'):
+            tagline = clean[8:].strip().rstrip('.')
+        elif upper.startswith('ABOUT:'):
+            about = clean[6:].strip()
+
+    # Fallback: if parsing failed, try to salvage something from the text
+    if not tagline:
+        lines = [l.strip().lstrip('*_#').strip() for l in text.splitlines() if l.strip()]
+        for line in lines:
+            if 10 < len(line) < 120 and not line.upper().startswith('ABOUT'):
+                tagline = line.rstrip('.')
+                break
+
+    if not about:
+        # Take everything after tagline line as about text
+        found_tag = False
+        parts = []
+        for line in text.splitlines():
+            clean = line.strip().lstrip('*_#').strip()
+            if clean.upper().startswith('TAGLINE:'):
+                found_tag = True
+                continue
+            if found_tag and clean and not clean.upper().startswith('ABOUT:'):
+                parts.append(clean.lstrip('ABOUT:').strip())
+        if parts:
+            about = ' '.join(parts)
 
     return {
-        'tagline': tagline or f"A Berkeley {category_hint}",
+        'tagline': tagline or f"A local {category_hint} in Berkeley",
         'about': about or '',
     }
