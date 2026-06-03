@@ -1,17 +1,14 @@
 """
 Send cold outreach emails via Resend.
 
-Two-tier pricing:
-  Basic    $299  — transfer the auto-generated demo site as-is
-  Premium  $599  — full custom redesign: unique layout, 5 pages,
-                   professional copy, domain setup, SEO basics
+Pitch: preview-first → 10-min call → buy as-is or custom build.
 
 Usage:
     cd outreach
-    python email.py --place-id <place_id> --dry-run          # preview
-    python email.py --place-id <place_id>                     # send v1
-    python email.py --place-id <place_id> --version v2        # follow-up
-    python email.py --list                                     # pipeline status
+    python email.py --place-id <place_id> --dry-run
+    python email.py --place-id <place_id>
+    python email.py --place-id <place_id> --version v2
+    python email.py --list
 """
 import os
 import sys
@@ -30,9 +27,8 @@ resend.api_key = os.environ.get('RESEND_API_KEY', '')
 FROM_NAME = 'Charles'
 FROM_EMAIL = os.environ.get('FROM_EMAIL', 'charles@yourdomain.com')
 PHYSICAL_ADDRESS = 'Berkeley, CA 94704'
-
-# Portfolio page hosted on ceos-enterprise (or standalone domain later)
 PORTFOLIO_URL = os.environ.get('PORTFOLIO_URL', 'https://ceos-enterprise.vercel.app/portfolio')
+PHONE_NUMBER = os.environ.get('OUTREACH_PHONE', '')  # optional: add your number as GH secret
 
 
 def _first_name(owner: str) -> str:
@@ -41,61 +37,74 @@ def _first_name(owner: str) -> str:
     return owner.split()[0]
 
 
-def build_email(version: str, name: str, owner: str, demo_url: str) -> tuple[str, str]:
+def build_email(version: str, name: str, owner: str, demo_url: str,
+                rating: float = 0, review_count: int = 0) -> tuple[str, str]:
     first = _first_name(owner)
+    stars = f'{rating}★ ({review_count} reviews)' if rating else ''
 
     if version == 'v1':
-        subject = f"Built a website for {name} — take a look?"
+        subject = f"Free website preview I made for {name}"
         body = f"""Hi {first},
 
-I'm a UC Berkeley student who builds websites for local businesses. I put one together for {name} this week using your real photos and info:
+I'm Charles — a UC Berkeley student who builds websites for local Berkeley businesses. I put together a free preview site for {name} this week, built from your real Google Maps photos and info:
 
 👉 {demo_url}
 
-Two options if you want to keep it:
+This is just a preview — I haven't sent you a bill, and I'm not asking you to commit to anything.
 
-  · Basic ($299) — I transfer the site to you as-is. You own it.
-  · Custom ($599) — I redesign it from scratch with a unique layout,
-    5 pages, professional copy, and domain setup.
+I'd love to hop on a quick 10-minute call to show you what a fully custom version could look like, or answer any questions. No pressure at all — if you love the preview as-is, I can transfer it to you for a flat $299 and you own it outright.
 
-Here are examples of other sites I've built:
+Here's what other Berkeley businesses have gotten:
 {PORTFOLIO_URL}
 
-No pressure either way — if it's not for you, I'll take it down.
+A few things that set this apart from a DIY website builder:
+  · Built specifically for {name} — not a generic template
+  · Mobile-first, fast, and professional-looking
+  · I handle everything — no tech knowledge needed from you
+  · One-time fee, no monthly subscriptions
+
+If a call works, just reply with a time that's good for you and I'll make it happen. Even a quick "not interested" helps me out — I'll move on and won't bother you again.
 
 — Charles
-UC Berkeley · charles_ow@berkeley.edu"""
+UC Berkeley · {FROM_EMAIL}"""
 
     elif version == 'v2':
-        subject = f"Re: Website for {name}"
+        subject = f"Re: Free website preview for {name}"
         body = f"""Hi {first},
 
-Bumping this in case it got buried. The {name} demo is still live:
+Following up on the free preview site I built for {name}:
 
 👉 {demo_url}
 
-Quick reminder on pricing:
-  · Basic transfer: $299
-  · Full custom redesign: $599 (portfolio: {PORTFOLIO_URL})
+I know inboxes get busy. Quick version: I'd love a 10-minute call to walk you through what a fully custom site for {name} could look like — or if you want the preview as-is, it's $299 and I handle the transfer.
 
-Happy to jump on a quick call or answer any questions — just reply here.
+A few things worth knowing:
+  · {name} has {stars + ' on Google — ' if stars else ''}no website means you're invisible to anyone who searches for you online
+  · Most of your competitors in Berkeley already have sites; this closes that gap fast
+  · The call is free, no-commitment, and I can work around your schedule
 
-— Charles"""
+If this isn't the right time, just say so — I respect that completely.
+
+— Charles
+{FROM_EMAIL}"""
 
     elif version == 'v3':
-        subject = f"Last note — {name} site"
+        subject = f"Last note — {name} preview site"
         body = f"""Hi {first},
 
-Last note before I take the {name} demo down to free up the URL.
+Last note from me — I'm going to repurpose the {name} URL for another business by end of week if I don't hear back.
 
-Demo: {demo_url}
-Portfolio: {PORTFOLIO_URL}
+Preview: {demo_url}
 
-Basic transfer $299 · Custom redesign $599
+If you'd like to keep it:
+  · Buy as-is: $299 (I transfer it, you own it)
+  · Custom build: $599 (unique design, 5 pages, domain setup)
+  · Or just reply to schedule a free 10-min call — no commitment
 
-If you want it, just reply "yes" and I'll handle the rest. If not, no worries — wishing {name} the best.
+If the timing isn't right, no worries. I wish {name} the best.
 
-— Charles"""
+— Charles
+{FROM_EMAIL}"""
 
     else:
         raise ValueError(f"Unknown version: {version}")
@@ -104,63 +113,78 @@ If you want it, just reply "yes" and I'll handle the rest. If not, no worries �
 
 
 def to_html(body: str, demo_url: str, name: str) -> str:
-    """Rich HTML version with a demo preview button."""
     paragraphs = body.strip().split('\n\n')
-    html_paras = []
+    html_parts = []
     for p in paragraphs:
-        # Make emoji lines stand out
-        lines = p.replace(chr(10), '<br>')
-        html_paras.append(f'<p style="margin:0 0 16px 0">{lines}</p>')
+        lines = p.strip().split('\n')
+        # Detect bullet lists (lines starting with ·)
+        if any(l.strip().startswith('·') for l in lines):
+            items = ''.join(
+                f'<li style="margin:0 0 8px 0;padding-left:4px">{l.strip().lstrip("· ")}</li>'
+                for l in lines if l.strip()
+            )
+            html_parts.append(f'<ul style="margin:0 0 16px 0;padding-left:20px;list-style:disc">{items}</ul>')
+        else:
+            text = p.replace('\n', '<br>')
+            html_parts.append(f'<p style="margin:0 0 16px 0">{text}</p>')
 
-    cta_button = f"""
-<table cellpadding="0" cellspacing="0" style="margin:20px 0">
+    preview_button = f"""
+<table cellpadding="0" cellspacing="0" style="margin:24px 0">
   <tr>
     <td>
       <a href="{demo_url}"
          style="display:inline-block;background:#111;color:#fff;font-size:14px;
-                font-weight:600;text-decoration:none;padding:12px 24px;
-                border-radius:8px;border:1px solid #333">
-        View {name} demo →
-      </a>
-    </td>
-    <td style="padding-left:12px">
-      <a href="{PORTFOLIO_URL}"
-         style="display:inline-block;color:#555;font-size:13px;text-decoration:none;
-                padding:12px 16px;border:1px solid #e5e5e5;border-radius:8px">
-        See portfolio
+                font-weight:600;text-decoration:none;padding:14px 28px;
+                border-radius:6px;border:1px solid #333;letter-spacing:0.01em">
+        View {name} preview →
       </a>
     </td>
   </tr>
 </table>"""
 
-    pricing_box = """
-<table cellpadding="0" cellspacing="0" style="margin:20px 0;width:100%;border-collapse:collapse">
+    call_box = f"""
+<table cellpadding="0" cellspacing="0" style="margin:24px 0;width:100%;max-width:480px;
+       border:1px solid #e8e8e8;border-radius:8px">
   <tr>
-    <td style="padding:14px 16px;border:1px solid #e5e5e5;border-radius:8px 0 0 8px;
+    <td style="padding:20px 24px">
+      <p style="margin:0 0 4px;font-size:13px;color:#999;text-transform:uppercase;
+                letter-spacing:0.05em;font-weight:600">How this works</p>
+      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#111">
+        Free 10-minute call
+      </p>
+      <p style="margin:0;font-size:13px;color:#555;line-height:1.5">
+        Reply with a time that works and I'll walk you through
+        what a custom site for {name} could look like.
+        No commitment, no sales pitch — just a quick look.
+      </p>
+    </td>
+  </tr>
+</table>"""
+
+    pricing_table = f"""
+<table cellpadding="0" cellspacing="0" style="margin:20px 0;width:100%;max-width:480px;border-collapse:collapse">
+  <tr>
+    <td style="padding:14px 16px;border:1px solid #e8e8e8;border-radius:8px 0 0 8px;
                background:#fafafa;width:50%;vertical-align:top">
-      <div style="font-size:12px;color:#999;text-transform:uppercase;letter-spacing:.5px">Basic</div>
-      <div style="font-size:22px;font-weight:700;margin:4px 0">$299</div>
-      <div style="font-size:13px;color:#555;line-height:1.5">
-        Demo site transferred to you<br>
-        Mobile-responsive<br>
-        Your real photos &amp; info<br>
-        You own it outright
+      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.05em">As-is transfer</div>
+      <div style="font-size:24px;font-weight:700;margin:4px 0;color:#111">$299</div>
+      <div style="font-size:12px;color:#555;line-height:1.5">
+        Preview site transferred to you<br>You own it outright<br>No subscriptions
       </div>
     </td>
     <td style="width:8px"></td>
     <td style="padding:14px 16px;border:2px solid #111;border-radius:0 8px 8px 0;
                background:#fff;width:50%;vertical-align:top">
-      <div style="font-size:12px;color:#999;text-transform:uppercase;letter-spacing:.5px">Custom ✦</div>
-      <div style="font-size:22px;font-weight:700;margin:4px 0">$599</div>
-      <div style="font-size:13px;color:#555;line-height:1.5">
-        Unique custom design<br>
-        5 pages + professional copy<br>
-        Domain setup &amp; SEO basics<br>
-        2 rounds of revisions
+      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.05em">Custom build ✦</div>
+      <div style="font-size:24px;font-weight:700;margin:4px 0;color:#111">$599</div>
+      <div style="font-size:12px;color:#555;line-height:1.5">
+        Unique design for your brand<br>5 pages + pro copy<br>Domain &amp; SEO setup
       </div>
     </td>
   </tr>
 </table>"""
+
+    body_html = ''.join(html_parts)
 
     return f"""<!DOCTYPE html>
 <html>
@@ -170,12 +194,52 @@ def to_html(body: str, demo_url: str, name: str) -> str:
 </head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
              font-size:15px;line-height:1.6;color:#111;max-width:580px;margin:0 auto;padding:32px 24px">
-  {''.join(html_paras[:2])}
-  {cta_button}
-  {pricing_box}
-  {''.join(html_paras[2:])}
-  <hr style="border:none;border-top:1px solid #e5e5e5;margin:28px 0">
-  <p style="font-size:12px;color:#999;margin:0">
+
+  {body_html[:body_html.find('<p style="margin:0 0 16px 0">👉')]}
+
+  {preview_button}
+
+  {body_html[body_html.find('<p style="margin:0 0 16px 0">This is just'):]}
+
+  {call_box}
+  {pricing_table}
+
+  <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+  <p style="font-size:12px;color:#aaa;margin:0">
+    {FROM_NAME} · UC Berkeley · {PHYSICAL_ADDRESS}<br>
+    To unsubscribe, reply "unsubscribe."
+  </p>
+</body>
+</html>"""
+
+
+def _simple_html(body: str, demo_url: str, name: str) -> str:
+    """Simple HTML for v2/v3 — no complex layout needed."""
+    paragraphs = body.strip().split('\n\n')
+    html_parts = []
+    for p in paragraphs:
+        lines = p.strip().split('\n')
+        if any(l.strip().startswith('·') for l in lines):
+            items = ''.join(
+                f'<li style="margin:0 0 8px">{l.strip().lstrip("· ")}</li>'
+                for l in lines if l.strip()
+            )
+            html_parts.append(f'<ul style="margin:0 0 16px;padding-left:20px">{items}</ul>')
+        else:
+            html_parts.append(f'<p style="margin:0 0 16px">{p.replace(chr(10),"<br>")}</p>')
+
+    # Inject a prominent button after first paragraph
+    button = f'<table cellpadding="0" cellspacing="0" style="margin:20px 0"><tr><td><a href="{demo_url}" style="display:inline-block;background:#111;color:#fff;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px">View {name} preview →</a></td></tr></table>'
+    html_parts.insert(1, button)
+
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+             font-size:15px;line-height:1.6;color:#111;max-width:580px;margin:0 auto;padding:32px 24px">
+  {''.join(html_parts)}
+  <hr style="border:none;border-top:1px solid #eee;margin:28px 0">
+  <p style="font-size:12px;color:#aaa;margin:0">
     {FROM_NAME} · UC Berkeley · {PHYSICAL_ADDRESS}<br>
     To unsubscribe, reply "unsubscribe."
   </p>
@@ -189,10 +253,13 @@ def send(place_id: str, version: str = 'v1', dry_run: bool = False):
     if not biz:
         sys.exit(f'Business not found: {place_id}')
     if not biz.get('demo_url'):
-        sys.exit(f'No demo URL for {biz["name"]} — run generator/generate.py first.')
+        sys.exit(f'No demo URL for {biz["name"]} — generate site first.')
 
     owner = biz.get('owner_name') or 'owner'
-    subject, body = build_email(version, biz['name'], owner, biz['demo_url'])
+    rating = float(biz.get('rating') or 0)
+    review_count = int(biz.get('review_count') or 0)
+    subject, body = build_email(version, biz['name'], owner, biz['demo_url'],
+                                rating=rating, review_count=review_count)
 
     print(f'To:      {biz.get("owner_email") or "(no email set)"}')
     print(f'Subject: {subject}')
@@ -204,15 +271,17 @@ def send(place_id: str, version: str = 'v1', dry_run: bool = False):
 
     to_email = biz.get('owner_email')
     if not to_email:
-        sys.exit(f'No email address for {biz["name"]} — enrich first.')
+        sys.exit(f'No email for {biz["name"]} — enrich first.')
 
-    html = to_html(body, biz['demo_url'], biz['name'])
+    html = _simple_html(body, biz['demo_url'], biz['name']) if version != 'v1' else _simple_html(body, biz['demo_url'], biz['name'])
+
     result = resend.Emails.send({
         'from': f'{FROM_NAME} <{FROM_EMAIL}>',
         'to': [to_email],
         'subject': subject,
         'html': html,
         'text': body,
+        'reply_to': FROM_EMAIL,
     })
 
     db.update_business(
