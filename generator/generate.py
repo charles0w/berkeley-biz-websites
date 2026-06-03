@@ -158,6 +158,46 @@ def deploy_to_vercel(work_dir: str, project_name: str) -> str:
     return f'https://{project_name}.vercel.app'
 
 
+CUSTOM_DOMAIN_BASE = os.environ.get('CUSTOM_DOMAIN_BASE', 'charlesbuilds.online')
+VERCEL_TEAM_ID = 'team_WRCzWKnhfhGQBzZTMmji0lSj'
+
+
+def assign_custom_domain(slug: str) -> str | None:
+    """Add {slug}.charlesbuilds.online as an alias to the Vercel project.
+    Requires wildcard CNAME *.charlesbuilds.online → cname.vercel-dns.com in DNS."""
+    if not VERCEL_TOKEN or not CUSTOM_DOMAIN_BASE:
+        return None
+    subdomain = f'{slug}.{CUSTOM_DOMAIN_BASE}'
+    project_name = f'biz-{slug}'
+    url = (
+        f'https://api.vercel.com/v9/projects/{project_name}/domains'
+        f'?teamId={VERCEL_TEAM_ID}'
+    )
+    payload = json.dumps({'name': subdomain}).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            'Authorization': f'Bearer {VERCEL_TOKEN}',
+            'Content-Type': 'application/json',
+        },
+        method='POST',
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+        if data.get('name') == subdomain or data.get('verified'):
+            return f'https://{subdomain}'
+        # Already exists is fine too
+        if 'already' in str(data).lower() or data.get('error', {}).get('code') == 'domain_already_in_use':
+            return f'https://{subdomain}'
+        print(f'  domain API response: {data}')
+        return f'https://{subdomain}'  # optimistically return it anyway
+    except Exception as e:
+        print(f'  custom domain assignment failed: {e}')
+        return None
+
+
 def fetch_extra_photo_refs(place_id: str, existing_refs: list, target: int = 8) -> list:
     """Fetch additional photo_refs from Places Details API if we have fewer than target."""
     if len(existing_refs) >= target or not GOOGLE_MAPS_API_KEY:
@@ -227,7 +267,13 @@ def generate_site(place_id: str, build_only: bool = False) -> str:
     print(f'  deploying to Vercel as {project_name}...')
     url = deploy_to_vercel(work_dir, project_name)
 
-    # 6. Persist
+    # 6. Assign custom subdomain (requires wildcard DNS in place)
+    custom_url = assign_custom_domain(biz['slug'])
+    if custom_url:
+        print(f'  custom domain: {custom_url}')
+        url = custom_url
+
+    # 7. Persist
     db.update_business(place_id, demo_url=url, status='generated')
     shutil.rmtree(work_dir, ignore_errors=True)
 
