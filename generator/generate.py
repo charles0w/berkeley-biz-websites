@@ -7,6 +7,7 @@ Usage:
     python generate.py <place_id> --build-only  # generate but don't deploy (for testing)
     python generate.py --list              # list all businesses in DB
 """
+from __future__ import annotations
 import os
 import sys
 import json
@@ -15,6 +16,8 @@ import subprocess
 import tempfile
 import argparse
 import requests
+import urllib.request
+import urllib.parse
 from decimal import Decimal
 from dotenv import load_dotenv
 
@@ -155,6 +158,38 @@ def deploy_to_vercel(work_dir: str, project_name: str) -> str:
     return f'https://{project_name}.vercel.app'
 
 
+def fetch_extra_photo_refs(place_id: str, existing_refs: list, target: int = 8) -> list:
+    """Fetch additional photo_refs from Places Details API if we have fewer than target."""
+    if len(existing_refs) >= target or not GOOGLE_MAPS_API_KEY:
+        return existing_refs
+    try:
+        qs = urllib.parse.urlencode({
+            'place_id': place_id,
+            'fields': 'photos',
+            'key': GOOGLE_MAPS_API_KEY,
+        })
+        url = 'https://maps.googleapis.com/maps/api/place/details/json?' + qs
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read())
+        api_refs = [
+            p['photo_reference']
+            for p in data.get('result', {}).get('photos', [])
+            if 'photo_reference' in p
+        ]
+        # Merge, preserving order, deduplicating
+        seen = set(existing_refs)
+        merged = list(existing_refs)
+        for ref in api_refs:
+            if ref not in seen:
+                merged.append(ref)
+                seen.add(ref)
+        print(f'  fetched {len(api_refs)} photo refs from API → {len(merged)} total')
+        return merged[:target]
+    except Exception as e:
+        print(f'  photo ref fetch skipped: {e}')
+        return existing_refs
+
+
 def generate_site(place_id: str, build_only: bool = False) -> str:
     db = Database()
     biz = db.get_business(place_id)
@@ -163,8 +198,9 @@ def generate_site(place_id: str, build_only: bool = False) -> str:
 
     print(f'\nGenerating: {biz["name"]}')
 
-    # 1. Download photos
+    # 1. Download photos — fetch extra refs from API if < 3 stored
     photo_refs = json.loads(biz.get('photo_refs') or '[]')
+    photo_refs = fetch_extra_photo_refs(place_id, photo_refs, target=8)
     photos = download_photos(photo_refs, biz['slug'], max_photos=8)
     biz['_local_photos'] = json.dumps(photos)
 

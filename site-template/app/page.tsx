@@ -150,6 +150,24 @@ export default function Page() {
         </section>
       )}
 
+      {/* ── Photo placeholder for businesses with no photos ───── */}
+      {galleryPhotos.length === 0 && (
+        <section className="px-6 py-16 md:px-12 md:py-20 border-t border-white/5">
+          <div className="max-w-5xl mx-auto">
+            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-white/25 mb-8">Photos</p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+              {[0,1,2].map(i => (
+                <div key={i} className={`flex items-center justify-center border border-dashed border-white/8 ${i === 0 ? 'md:col-span-2 aspect-[16/9]' : 'aspect-square'} bg-white/[0.02]`}>
+                  <p className="font-mono text-[10px] tracking-widest uppercase text-white/15 text-center px-4">
+                    {i === 0 ? 'Add your own photos — reply to claim this site' : 'Your photo'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ── Gallery ───────────────────────────────────────────── */}
       {galleryPhotos.length > 0 && (
         <section className="px-6 py-16 md:px-12 md:py-20 border-t border-white/5">
