@@ -30,7 +30,8 @@ function Stars({ rating }: { rating: number }) {
 export default function Page() {
   const photos = (business.photos ?? []) as string[]
   const heroPhoto = photos[0]
-  const galleryPhotos = photos.slice(1, 5)
+  // Gallery shows all photos — gives the most visual richness
+  const galleryPhotos = photos.slice(0, 8)
   const hours = (business.hours ?? {}) as Record<string, string>
   const orderedDays = DAYS.filter(d => d in hours)
   const hasHours = orderedDays.length > 0
@@ -40,6 +41,18 @@ export default function Page() {
   const streetLine = business.address.split(',')[0]?.trim() ?? ''
   const cityLine = business.address.split(',').slice(1).join(',').trim()
   const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(business.address)}`
+
+  // Category-specific gradient for businesses with no photo
+  const categoryGradient: Record<string, string> = {
+    cafe:     'from-amber-950 via-stone-900 to-neutral-950',
+    food:     'from-orange-950 via-stone-900 to-neutral-950',
+    salon:    'from-rose-950 via-stone-900 to-neutral-950',
+    beauty:   'from-pink-950 via-stone-900 to-neutral-950',
+    fitness:  'from-blue-950 via-slate-900 to-neutral-950',
+    retail:   'from-violet-950 via-stone-900 to-neutral-950',
+    services: 'from-teal-950 via-stone-900 to-neutral-950',
+  }
+  const heroGradient = categoryGradient[business.category as string] ?? 'from-stone-900 to-neutral-950'
 
   return (
     <main className="min-h-[100dvh] bg-neutral-950 text-neutral-100">
@@ -53,7 +66,7 @@ export default function Page() {
             className="absolute inset-0 w-full h-full object-cover"
           />
         ) : (
-          <div className="absolute inset-0 bg-neutral-800" />
+          <div className={`absolute inset-0 bg-gradient-to-br ${heroGradient}`} />
         )}
 
         {/* Gradient: strong at bottom for text, subtle at top */}
@@ -139,25 +152,31 @@ export default function Page() {
 
       {/* ── Gallery ───────────────────────────────────────────── */}
       {galleryPhotos.length > 0 && (
-        <section className="px-6 pb-4 md:px-12">
+        <section className="px-6 py-16 md:px-12 md:py-20 border-t border-white/5">
           <div className="max-w-5xl mx-auto">
-            <div className={`grid gap-1.5 ${
-              galleryPhotos.length === 1 ? 'grid-cols-1' :
-              galleryPhotos.length === 2 ? 'grid-cols-2' :
-              galleryPhotos.length === 3 ? 'grid-cols-3' :
-              'grid-cols-2 md:grid-cols-4'
-            }`}>
-              {galleryPhotos.map((src, i) => (
-                <img
-                  key={i}
-                  src={`/${src}`}
-                  alt=""
-                  className={`w-full object-cover ${
-                    galleryPhotos.length >= 4 && i === 0 ? 'md:col-span-2 aspect-[4/3]' : 'aspect-square'
-                  }`}
-                />
-              ))}
-            </div>
+            <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-white/25 mb-8">Photos</p>
+            {galleryPhotos.length === 1 ? (
+              <img src={`/${galleryPhotos[0]}`} alt="" className="w-full aspect-[16/7] object-cover" />
+            ) : galleryPhotos.length === 2 ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                {galleryPhotos.map((src, i) => (
+                  <img key={i} src={`/${src}`} alt="" className="w-full aspect-square object-cover" />
+                ))}
+              </div>
+            ) : galleryPhotos.length === 3 ? (
+              <div className="grid grid-cols-2 gap-1.5">
+                <img src={`/${galleryPhotos[0]}`} alt="" className="w-full aspect-square object-cover row-span-2" />
+                <img src={`/${galleryPhotos[1]}`} alt="" className="w-full aspect-square object-cover" />
+                <img src={`/${galleryPhotos[2]}`} alt="" className="w-full aspect-square object-cover" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                <img src={`/${galleryPhotos[0]}`} alt="" className="w-full md:col-span-2 aspect-[16/9] object-cover" />
+                {galleryPhotos.slice(1, 7).map((src, i) => (
+                  <img key={i} src={`/${src}`} alt="" className="w-full aspect-square object-cover" />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}

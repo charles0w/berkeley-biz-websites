@@ -26,7 +26,11 @@ Rules you never break:
 - No hollow compliments ("amazing", "passionate team").
 - Write like a local who knows the place — specific, grounded, understated.
 - Tagline: 10-15 words max. Present tense. No period.
-- About: 2-3 sentences. Facts + texture. No made-up specifics."""
+- About: 2-3 sentences. Facts + texture. No made-up specifics.
+- IMPORTANT: The ABOUT must NOT begin by repeating or paraphrasing the TAGLINE. Start with a completely different angle.
+- Output format must be exactly two lines with no markdown, no bold, no asterisks:
+  TAGLINE: [your tagline]
+  ABOUT: [your about text]"""
 
 
 def _client_instance() -> anthropic.Anthropic:

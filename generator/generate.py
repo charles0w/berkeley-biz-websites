@@ -165,7 +165,7 @@ def generate_site(place_id: str, build_only: bool = False) -> str:
 
     # 1. Download photos
     photo_refs = json.loads(biz.get('photo_refs') or '[]')
-    photos = download_photos(photo_refs, biz['slug'])
+    photos = download_photos(photo_refs, biz['slug'], max_photos=8)
     biz['_local_photos'] = json.dumps(photos)
 
     # 2. Generate copy
