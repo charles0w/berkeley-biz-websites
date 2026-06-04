@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scraper'))
 from db import Database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'outreach'))
-import email as outreach_email
+import mailer as outreach_email
 
 MAX_PER_DAY = 15
 _CEOS_URL = os.environ.get('CEOS_DASHBOARD_URL', 'https://ceos-enterprise.vercel.app')

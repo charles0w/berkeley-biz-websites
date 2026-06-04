@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scraper'))
 from db import Database
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'outreach'))
-import email as outreach_email
+import mailer as outreach_email
 
 V2_DELAY_DAYS = 7
 V3_DELAY_DAYS = 7
