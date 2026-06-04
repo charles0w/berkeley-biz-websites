@@ -44,13 +44,20 @@ jobs:
       - name: Install outreach deps
         run: pip install -r outreach/requirements.txt
 
-      - name: 1 — Enrich emails (up to 50 per run)
+      - name: 1a — Enrich emails via DuckDuckGo (up to 30 per run)
         working-directory: scraper
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-        run: python enrich_emails.py --limit 50
+        run: python enrich_emails.py --limit 30
+
+      - name: 1b — Enrich emails via Yelp (up to 20 per run)
+        working-directory: scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CEOS_REPORT_SECRET: ${{ secrets.CEOS_REPORT_SECRET }}
+        run: python scrape_yelp.py --limit 20
 
       - name: 2 — Send v1 outreach to new leads
         working-directory: pipeline

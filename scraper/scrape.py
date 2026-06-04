@@ -38,9 +38,24 @@ def _report(state: str, summary: str, ok: bool = True) -> None:
 
 load_dotenv()
 
-BERKELEY_LAT = 37.8716
-BERKELEY_LNG = -122.2727
-RADIUS_M = 2000
+# ── Scrape locations ──────────────────────────────────────────
+# Each entry: (city_label, lat, lng, radius_m)
+# Add or remove cities here to expand coverage.
+LOCATIONS = [
+    # Berkeley
+    ('Berkeley', 37.8716, -122.2727, 2000),
+    # San Francisco neighborhoods
+    ('SF-Mission',    37.7599, -122.4148, 1200),
+    ('SF-Castro',     37.7610, -122.4350, 1200),
+    ('SF-Haight',     37.7692, -122.4461, 1200),
+    ('SF-SoMa',       37.7785, -122.3892, 1200),
+    ('SF-Richmond',   37.7793, -122.4850, 1400),
+    ('SF-Sunset',     37.7527, -122.4962, 1400),
+    ('SF-NobHill',    37.7930, -122.4130, 1200),
+    ('SF-Marina',     37.8013, -122.4358, 1200),
+    ('SF-Tenderloin', 37.7816, -122.4150, 1000),
+    ('SF-Excelsior',  37.7237, -122.4239, 1200),
+]
 
 TYPES_TO_SCRAPE = [
     'restaurant', 'cafe', 'hair_care', 'beauty_salon', 'nail_salon',
@@ -126,23 +141,17 @@ def parse_hours(opening_hours: dict) -> dict:
     return result
 
 
-def scrape():
-    api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
-    if not api_key:
-        sys.exit('GOOGLE_MAPS_API_KEY not set — copy scraper/.env.example to scraper/.env and fill it in.')
-
-    gmaps = googlemaps.Client(key=api_key)
-    db = Database()
+def scrape_location(api_key: str, gmaps, db: Database, city: str, lat: float, lng: float, radius: int) -> int:
+    """Scrape all business types for one location center. Returns count of new businesses."""
     total_new = 0
-
     for place_type in TYPES_TO_SCRAPE:
-        print(f'\nScraping type: {place_type}')
+        print(f'\n[{city}] {place_type}')
         next_page_token = None
 
         for page in range(3):
             kwargs: dict = {
-                'location': (BERKELEY_LAT, BERKELEY_LNG),
-                'radius': RADIUS_M,
+                'location': (lat, lng),
+                'radius': radius,
                 'type': place_type,
             }
             if next_page_token:
@@ -157,7 +166,6 @@ def scrape():
 
             for place in response.get('results', []):
                 place_id = place['place_id']
-
                 try:
                     detail = place_detail(api_key, place_id)
                 except Exception as e:
@@ -166,11 +174,9 @@ def scrape():
 
                 website = detail.get('website', '')
                 if not is_placeholder(website):
-                    continue  # has a real owned site — skip
+                    continue
 
                 hours = parse_hours(detail.get('opening_hours', {}))
-                # types and photos come from the nearby result (not detail)
-                # to avoid the invalid field names issue with the Places API.
                 photo_refs = [p['photo_reference'] for p in place.get('photos', [])[:6]]
 
                 db.upsert_business({
@@ -188,13 +194,28 @@ def scrape():
                     'lng': detail['geometry']['location']['lng'],
                 })
                 total_new += 1
-                print(f'  + {detail["name"]} ({detail.get("rating", "?")}★, {detail.get("user_ratings_total", 0)} reviews)')
-
+                print(f'  + {detail["name"]} ({detail.get("rating", "?")}★)')
                 time.sleep(0.15)
 
             next_page_token = response.get('next_page_token')
             if not next_page_token:
                 break
+
+    return total_new
+
+
+def scrape():
+    api_key = os.environ.get('GOOGLE_MAPS_API_KEY')
+    if not api_key:
+        sys.exit('GOOGLE_MAPS_API_KEY not set.')
+
+    gmaps = googlemaps.Client(key=api_key)
+    db = Database()
+    total_new = 0
+
+    for (city, lat, lng, radius) in LOCATIONS:
+        print(f'\n{"="*50}\nCity: {city}\n{"="*50}')
+        total_new += scrape_location(api_key, gmaps, db, city, lat, lng, radius)
 
     total = db.count()
     print(f'\nDone. {total_new} businesses saved/updated. Total in DB: {total}')
