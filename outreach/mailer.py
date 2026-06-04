@@ -52,25 +52,26 @@ I'm Charles — a UC Berkeley student who builds websites for local Berkeley bus
 
 This is just a preview — I haven't sent you a bill, and I'm not asking you to commit to anything.
 
-I'd love to hop on a quick 10-minute call to show you what a fully custom version could look like, or answer any questions. No pressure at all.
+I'd love to hop on a quick 10-minute call, or if the preview looks good as-is, here are the options:
 
-Three options — pick what fits:
+  · Basic ($299 one-time) — I transfer the site to you. You own it outright.
+  · Custom ($599 one-time) — full redesign: unique layout, 5 pages, pro copy, domain setup.
+  · Growth ($400/mo) — I actively bring you customers every month:
+      – AI chat that converts website visitors to bookings around the clock
+      – Online booking so customers schedule without calling
+      – Automated reminders before every appointment (no-shows cut in half)
+      – Google review campaigns that grow your rating and visibility
+      – Monthly report showing exactly how many customers I drove
+      – Cancel anytime, no contracts
 
-  · Basic ($299 one-time) — transfer the preview site as-is. You own it.
-  · Custom ($599 one-time) — unique design, 5 pages, professional copy, domain setup.
-  · Pro ($49/mo) — everything in Custom plus: AI chat widget that answers
-    customer questions 24/7, online booking so customers schedule appointments
-    directly from your site, automated SMS/email reminders that cut no-shows,
-    and monthly updates handled by me.
+To put the Growth plan in real terms: if your average appointment is $60 and I
+fill 7 extra slots a month — or prevent 7 no-shows — it's already paid for.
 
-Examples of what I've built for other Berkeley businesses:
+More examples of sites I've built:
 {PORTFOLIO_URL}
 
-The Pro plan is especially useful for salons, barbershops, cafes — any business where
-bookings and repeat customers drive revenue. Most clients who try it see it pay for
-itself within the first month from reduced no-shows alone.
-
-If a call works, just reply with a time and I'll make it happen. Even a quick "not interested" helps — I'll move on and won't bother you again.
+Just reply with a time that works and I'll show you how it all fits together for {name} specifically.
+Even a quick "not interested" is helpful — I won't follow up if it's not a fit.
 
 — Charles
 UC Berkeley · {FROM_EMAIL}"""
@@ -83,12 +84,18 @@ Following up on the free preview site I built for {name}:
 
 👉 {demo_url}
 
-I know inboxes get busy. Quick version: I'd love a 10-minute call to walk you through what a fully custom site for {name} could look like — or if you want the preview as-is, it's $299 and I handle the transfer.
+I know inboxes get busy. Quick summary of where things stand:
 
-A few things worth knowing:
-  · {name} has {stars + ' on Google — ' if stars else ''}no website means you're invisible to anyone who searches for you online
-  · Most of your competitors in Berkeley already have sites; this closes that gap fast
-  · The call is free, no-commitment, and I can work around your schedule
+👉 {demo_url}
+
+Options if you want to move forward:
+  · $299 one-time — transfer preview as-is
+  · $599 one-time — full custom redesign
+  · $400/mo — I actively bring you customers every month (bookings, reminders,
+    reviews, monthly report on what I drove). Most businesses earn it back in
+    the first month from no-shows alone.
+
+{f'You have {stars} on Google — ' if stars else ''}{name} deserves to show up when people search. Happy to jump on a 10-minute call to show you exactly how it works for your type of business.
 
 If this isn't the right time, just say so — I respect that completely.
 
@@ -106,7 +113,7 @@ Preview: {demo_url}
 If you'd like to keep it:
   · Basic: $299 one-time (transfer as-is, you own it)
   · Custom: $599 one-time (unique design, 5 pages, domain setup)
-  · Pro: $49/mo (Custom + AI chat, online booking, SMS reminders)
+  · Growth: $400/mo (I bring you customers — bookings, reminders, reviews, monthly report)
   · Or just reply to schedule a free 10-min call — no commitment
 
 If the timing isn't right, no worries. I wish {name} the best.
