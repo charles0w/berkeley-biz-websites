@@ -52,18 +52,25 @@ I'm Charles — a UC Berkeley student who builds websites for local Berkeley bus
 
 This is just a preview — I haven't sent you a bill, and I'm not asking you to commit to anything.
 
-I'd love to hop on a quick 10-minute call to show you what a fully custom version could look like, or answer any questions. No pressure at all — if you love the preview as-is, I can transfer it to you for a flat $299 and you own it outright.
+I'd love to hop on a quick 10-minute call to show you what a fully custom version could look like, or answer any questions. No pressure at all.
 
-Here's what other Berkeley businesses have gotten:
+Three options — pick what fits:
+
+  · Basic ($299 one-time) — transfer the preview site as-is. You own it.
+  · Custom ($599 one-time) — unique design, 5 pages, professional copy, domain setup.
+  · Pro ($49/mo) — everything in Custom plus: AI chat widget that answers
+    customer questions 24/7, online booking so customers schedule appointments
+    directly from your site, automated SMS/email reminders that cut no-shows,
+    and monthly updates handled by me.
+
+Examples of what I've built for other Berkeley businesses:
 {PORTFOLIO_URL}
 
-A few things that set this apart from a DIY website builder:
-  · Built specifically for {name} — not a generic template
-  · Mobile-first, fast, and professional-looking
-  · I handle everything — no tech knowledge needed from you
-  · One-time fee, no monthly subscriptions
+The Pro plan is especially useful for salons, barbershops, cafes — any business where
+bookings and repeat customers drive revenue. Most clients who try it see it pay for
+itself within the first month from reduced no-shows alone.
 
-If a call works, just reply with a time that's good for you and I'll make it happen. Even a quick "not interested" helps me out — I'll move on and won't bother you again.
+If a call works, just reply with a time and I'll make it happen. Even a quick "not interested" helps — I'll move on and won't bother you again.
 
 — Charles
 UC Berkeley · {FROM_EMAIL}"""
@@ -97,8 +104,9 @@ Last note from me — I'm going to repurpose the {name} URL for another business
 Preview: {demo_url}
 
 If you'd like to keep it:
-  · Buy as-is: $299 (I transfer it, you own it)
-  · Custom build: $599 (unique design, 5 pages, domain setup)
+  · Basic: $299 one-time (transfer as-is, you own it)
+  · Custom: $599 one-time (unique design, 5 pages, domain setup)
+  · Pro: $49/mo (Custom + AI chat, online booking, SMS reminders)
   · Or just reply to schedule a free 10-min call — no commitment
 
 If the timing isn't right, no worries. I wish {name} the best.
