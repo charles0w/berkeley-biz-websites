@@ -13,8 +13,8 @@ name: Daily pipeline
 #   CEOS_REPORT_SECRET    (updates growth card on ceos-enterprise)
 
 on:
-  schedule:
-    - cron: "0 9 * * *"   # 09:00 UTC daily (after scraper at 08:00)
+  # schedule:
+  #   - cron: "0 9 * * *"   # PAUSED — re-enable to resume daily outreach
   workflow_dispatch:
     inputs:
       dry_run:
