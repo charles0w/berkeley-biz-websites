@@ -59,10 +59,17 @@ def download_photos(photo_refs: list, slug: str, max_photos: int = 5) -> list[st
     return saved
 
 
+def _site_variant(place_id: str) -> int:
+    """Deterministic 0-3 variant from place_id hash — gives each site a unique layout."""
+    import hashlib
+    return int(hashlib.md5(place_id.encode()).hexdigest()[:2], 16) % 4
+
+
 def build_site(biz: dict, work_dir: str):
     """Write business.json and build the Next.js static export in work_dir."""
     hours = json.loads(biz.get('hours_json') or '{}')
     photos = json.loads(biz.get('_local_photos') or '[]')
+    services = json.loads(biz.get('_services') or '[]')
 
     business_data = {
         'name': biz['name'],
@@ -77,6 +84,9 @@ def build_site(biz: dict, work_dir: str):
         'review_count': biz.get('review_count') or 0,
         'photos': photos,
         'place_id': biz['place_id'],
+        'plan': 'pro',
+        'variant': _site_variant(biz['place_id']),
+        'services': services,
     }
 
     with open(os.path.join(work_dir, 'business.json'), 'w') as f:
@@ -90,12 +100,6 @@ def build_site(biz: dict, work_dir: str):
         src = os.path.join(SITE_TEMPLATE_DIR, 'public', photo_rel)
         if os.path.exists(src):
             shutil.copy2(src, os.path.join(work_dir, 'public', photo_rel.replace('images/', '')))
-
-    # npm install (only if node_modules missing)
-    if not os.path.exists(os.path.join(work_dir, 'node_modules')):
-        print('  npm install...')
-        subprocess.run(['npm', 'install', '--prefer-offline'], cwd=work_dir,
-                       check=True, capture_output=True)
 
     print('  next build...')
     result = subprocess.run(['npm', 'run', 'build'], cwd=work_dir,
@@ -244,16 +248,29 @@ def generate_site(place_id: str, build_only: bool = False) -> str:
     photos = download_photos(photo_refs, biz['slug'], max_photos=8)
     biz['_local_photos'] = json.dumps(photos)
 
-    # 2. Generate copy
+    # 2. Generate copy (tagline + about + services)
     print('  generating copy with Claude Haiku...')
     copy = generate_copy(biz)
     biz['_tagline'] = copy['tagline']
     biz['_about'] = copy['about']
+    biz['_services'] = json.dumps(copy.get('services', []))
     print(f'  tagline: {copy["tagline"]}')
 
-    # 3. Copy template to temp dir
+    # 3. Copy template to temp dir (exclude node_modules/.next — symlink instead)
     work_dir = tempfile.mkdtemp(prefix=f'biz-{biz["slug"]}-')
-    shutil.copytree(SITE_TEMPLATE_DIR, work_dir, dirs_exist_ok=True)
+    shutil.copytree(
+        SITE_TEMPLATE_DIR, work_dir, dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns('node_modules', '.next'),
+    )
+    # Symlink node_modules so builds don't need npm install (instant, no broken-symlink issues)
+    src_nm = os.path.join(SITE_TEMPLATE_DIR, 'node_modules')
+    dst_nm = os.path.join(work_dir, 'node_modules')
+    if os.path.isdir(src_nm):
+        os.symlink(src_nm, dst_nm)
+    else:
+        print('  npm install (node_modules not found in template)...')
+        subprocess.run(['npm', 'install', '--prefer-offline'], cwd=work_dir,
+                       check=True, capture_output=True)
 
     # 4. Build
     build_site(biz, work_dir)
