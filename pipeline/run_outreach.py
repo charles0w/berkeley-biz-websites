@@ -30,20 +30,24 @@ MAX_PER_DAY = 15
 _CEOS_URL = os.environ.get('CEOS_DASHBOARD_URL', 'https://ceos-enterprise.vercel.app')
 
 
-def _report(state: str, summary: str, ok: bool = True) -> None:
+def _report(state: str, summary: str, ok: bool = True,
+            metrics: list[dict] | None = None) -> None:
+    # NOTE: growth must never send profit= to the dashboard — closed_amount
+    # already funds The Garage straight from the businesses table; reporting
+    # it again would double-count.
     secret = os.environ.get('CEOS_REPORT_SECRET', '').strip()
     if not secret:
         return
     try:
-        payload = json.dumps({
-            'agentId': 'growth',
-            'status': {
-                'state': state,
-                'lastRun': datetime.now(timezone.utc).isoformat(),
-                'summary': summary[:280],
-                'ok': ok,
-            },
-        }).encode()
+        status = {
+            'state': state,
+            'lastRun': datetime.now(timezone.utc).isoformat(),
+            'summary': summary[:280],
+            'ok': ok,
+        }
+        if metrics:
+            status['metrics'] = metrics[:3]
+        payload = json.dumps({'agentId': 'growth', 'status': status}).encode()
         req = urllib.request.Request(
             f"{_CEOS_URL.rstrip('/')}/api/report",
             data=payload,
@@ -102,7 +106,11 @@ def run(dry_run: bool = False):
             f'{total} scraped · {sites} sites · '
             f'{emailed} emailed · {replied} replies · {closed} closed'
         )
-        _report('ok', summary)
+        _report('ok', summary, metrics=[
+            {'label': 'Leads', 'value': total},
+            {'label': 'Sites built', 'value': sites},
+            {'label': 'Emails', 'value': emailed},
+        ])
 
     print(f'\nDone. {sent} emails {"(dry run)" if dry_run else "sent"}.')
     return sent
